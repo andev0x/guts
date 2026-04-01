@@ -1,0 +1,17 @@
+preset = "catppuccin"
+
+[colors]
+border = "#89b4fa"            # Blue
+status_line_bg = "#181825"    # Mantle
+status_line_fg = "#cdd6f4"    # Text
+
+selected_background = "#45475a" # Surface 1
+selected_foreground = "#f5c2e7" # Pink
+
+# Semantic Colors
+easy = "#a6e3a1"    # Green
+medium = "#fab387"  # Peach
+hard = "#f38ba8"    # Red
+
+
+link = "#89dceb"    # Sky

@@ -3,6 +3,7 @@ mod app;
 mod data;
 mod detect;
 mod error;
+mod theme;
 mod ui;
 
 use std::io;
@@ -20,26 +21,61 @@ use data::DataSet;
 use error::AppResult;
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
+use theme::{InitConfigOutcome, init_default_config, load_active_theme};
 
 #[derive(Debug, Parser)]
 #[command(name = "guts", version, about = "Fast terminal data explorer")]
 struct Cli {
-    #[arg(value_name = "SOURCE", help = "Path to .csv, .json, or .sqlite/.db")]
-    source: PathBuf,
+    #[arg(
+        value_name = "SOURCE",
+        help = "Path to .csv, .json, or .sqlite/.db",
+        required_unless_present = "init_config"
+    )]
+    source: Option<PathBuf>,
 
     #[arg(
         long,
         value_name = "SQL",
-        help = "Initial SQL query for SQLite sources"
+        help = "Initial SQL query for SQLite sources",
+        requires = "source"
     )]
     query: Option<String>,
+
+    #[arg(
+        long,
+        help = "Create ~/.config/guts/theme.toml with default template",
+        conflicts_with = "source",
+        conflicts_with = "query"
+    )]
+    init_config: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
-    let dataset = DataSet::from_path(&cli.source, cli.query.as_deref())
+
+    if cli.init_config {
+        match init_default_config()? {
+            InitConfigOutcome::Created(path) => {
+                println!("Created default theme config at {}", path.display());
+            }
+            InitConfigOutcome::AlreadyExists(path) => {
+                println!("Config already exists at {}", path.display());
+            }
+        }
+        return Ok(());
+    }
+
+    let source = cli.source.as_ref().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "SOURCE is required unless --init-config",
+        )
+    })?;
+
+    let dataset = DataSet::from_path(source, cli.query.as_deref())
         .map_err(|e| format!("Failed to open source: {e}"))?;
-    let mut app = App::new(dataset);
+    let theme = load_active_theme();
+    let mut app = App::new(dataset, theme);
 
     let terminal_result = run_terminal(&mut app);
     if let Err(err) = terminal_result {

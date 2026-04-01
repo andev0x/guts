@@ -1,0 +1,39 @@
+# guts - Terminal Data Explorer Configuration
+# Style: Deep Sea Arctic (High-Contrast Pastel for Blurred Backgrounds)
+# ------------------------------------------------------------------
+
+# 1. Base Preset Selection
+# Options: "catppuccin", "nord", "gruvbox", "monochrome"
+# Setting a preset provides a baseline; fields in [colors] will override it.
+preset = "nord"
+
+[colors]
+# 2. Frame & Structural UI
+# These colors define the boundaries of the data explorer.
+# Using a slightly darker, solid background for status lines ensures text legibility over blur.
+border = "#81A1C1"             # Frost Blue: Clear boundary for the table
+status_line_bg = "#2E3440"     # Polar Night: Solid dark base for headers/footers
+status_line_fg = "#ECEFF4"     # Snow Storm: Bright white-ish text for UI labels
+
+# 3. Data Rendering (Cell Styles)
+# Colors optimized for quick data scanning.
+text_default = "#D8DEE9"       # Muted White: Default text color
+number_fg = "#A3BE8C"          # Sage Green: Makes numeric data pop out from text
+link_fg = "#88C0D0"            # Ice Blue: Distinctive color for URLs/Emails
+
+# 4. Selection & Focus (The "Ruler" Effect)
+# This is the most important part for UX.
+# A bright Gold/Yellow foreground on a deep background creates a sharp focus point.
+selected_background = "#3B4252" # Deep Slate: Darker selection bar to contrast with blur
+selected_foreground = "#EBCB8B" # Aurora Gold: High-visibility text for the active row
+
+# 5. Semantic Highlighting (Data Status)
+# Used for categorical data like "Difficulty" (Easy/Medium/Hard).
+success = "#A6E3A1"            # Mint Green: Positive/Easy status
+warning = "#FAB387"            # Soft Orange: Neutral/Medium status
+error = "#F38BA8"              # Vibrant Red: Critical/Hard status
+
+# 6. Search & Filtering
+# Colors for when you press '/' or ':'
+search_match_bg = "#D08770"    # Burnt Orange: Background for search matches
+search_match_fg = "#2E3440"    # Dark Crust: High-contrast text on matches
