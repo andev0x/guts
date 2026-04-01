@@ -1,10 +1,27 @@
 # guts
 
-[![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/<repo>/actions/workflows/ci.yml)
+[![Latest Release](https://img.shields.io/github/v/release/andev0x/guts?style=flat-square&color=A6E3A1)](https://github.com/andev0x/guts/releases)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/andev0x/guts/ci.yml?branch=main&style=flat-square)](https://github.com/andev0x/guts/actions)
+[![Stars](https://img.shields.io/github/stars/andev0x/guts?style=flat-square&color=F9E2AF)](https://github.com/andev0x/guts/stargazers)
+[![Downloads](https://img.shields.io/github/downloads/andev0x/guts/total?style=flat-square&color=89B4FA)](https://github.com/andev0x/guts/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
 `guts` is a modern, keyboard-first, terminal data explorer for engineers.
 
-It is designed for speed and clarity when exploring CSV, JSON, and SQLite data directly in the terminal.
+It is designed for speed and clarity when exploring CSV, JSON, and SQLite data directly in the terminal, heavily inspired by Vim-style navigation and Unix philosophy.
+
+---
+
+### Themes Showcase
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/andev0x/description-image-archive/refs/heads/main/guts/catppuccin.png" width="49%" alt="Catppuccin Theme" />
+  <img src="https://raw.githubusercontent.com/andev0x/description-image-archive/refs/heads/main/guts/deep-sea.png" width="49%" alt="Deep Sea Theme" />
+  <img src="https://raw.githubusercontent.com/andev0x/description-image-archive/refs/heads/main/guts/gruvbox.png" width="49%" alt="Gruvbox Theme" />
+  <img src="https://raw.githubusercontent.com/andev0x/description-image-archive/refs/heads/main/guts/navy.png" width="49%" alt="Navy Theme" />
+</div>
+
+---
 
 ## Features
 
@@ -157,3 +174,9 @@ Contributions are welcome. Please read `CONTRIBUTING.md` before opening pull req
 ## License
 
 MIT. See [LICENSE](License).
+
+## Contributors
+<a href="https://github.com/andev0x/guts/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=andev0x/guts" />
+</a>
+
