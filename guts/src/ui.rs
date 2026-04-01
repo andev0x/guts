@@ -1,21 +1,19 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, Wrap};
 
 use crate::app::{App, InputMode};
 use crate::detect::CellKind;
 
-const BRAND_BG: Color = Color::Rgb(10, 18, 30);
-const BRAND_BORDER: Color = Color::Rgb(67, 138, 255);
-const BRAND_HEADER_BG: Color = Color::Rgb(26, 50, 82);
-const BRAND_SELECTED_BG: Color = Color::Rgb(36, 83, 147);
-const BRAND_MATCH_BG: Color = Color::Rgb(77, 56, 18);
-
 pub fn draw(frame: &mut Frame, app: &mut App) {
+    let palette = app.theme.palette;
     let size = frame.size();
-    frame.render_widget(Block::default().style(Style::default().bg(BRAND_BG)), size);
+    frame.render_widget(
+        Block::default().style(Style::default().bg(palette.background)),
+        size,
+    );
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -39,6 +37,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
 }
 
 fn render_header(frame: &mut Frame, area: Rect, app: &App) {
+    let palette = app.theme.palette;
     let selected_kind = app.selected_cell_kind().unwrap_or(CellKind::Text);
     let kind_text = match selected_kind {
         CellKind::Url => "URL",
@@ -52,32 +51,36 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         Span::styled(
             " guts ",
             Style::default()
-                .fg(Color::Black)
-                .bg(BRAND_BORDER)
+                .fg(palette.background)
+                .bg(palette.border)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw("  "),
         Span::styled(
             format!("{} rows", app.total_view_rows()),
-            Style::default().fg(Color::Cyan),
+            Style::default().fg(palette.metrics_foreground),
         ),
         Span::raw("  "),
         Span::styled(
             format!("col {}", app.selected_col + 1),
-            Style::default().fg(Color::LightBlue),
+            Style::default().fg(palette.column_foreground),
         ),
         Span::raw("  "),
         Span::styled(
             format!("type {}", kind_text),
-            Style::default().fg(Color::Yellow),
+            Style::default().fg(palette.type_foreground),
         ),
         Span::raw("  "),
-        Span::styled(app.source_label.clone(), Style::default().fg(Color::Gray)),
+        Span::styled(
+            app.source_label.clone(),
+            Style::default().fg(palette.source_foreground),
+        ),
     ]);
     frame.render_widget(Paragraph::new(line), area);
 }
 
 fn render_table(frame: &mut Frame, area: Rect, app: &mut App) {
+    let palette = app.theme.palette;
     let viewport_height = area.height.saturating_sub(3) as usize;
     app.ensure_scroll_visible(viewport_height);
 
@@ -87,24 +90,24 @@ fn render_table(frame: &mut Frame, area: Rect, app: &mut App) {
     let header = Row::new(app.headers.iter().map(|h| {
         Cell::from(h.as_str()).style(
             Style::default()
-                .fg(Color::White)
+                .fg(palette.header_foreground)
                 .add_modifier(Modifier::BOLD),
         )
     }))
-    .style(Style::default().bg(BRAND_HEADER_BG));
+    .style(Style::default().bg(palette.header_background));
 
     let (start, end) = app.visible_range(viewport_height);
     let rows = (start..end).map(|view_idx| {
         let row = app.row_at_view(view_idx);
-        let mut style = Style::default().fg(Color::Gray);
+        let mut style = Style::default().fg(palette.row_foreground);
 
         if app.is_search_match_view_row(view_idx) {
-            style = style.bg(BRAND_MATCH_BG);
+            style = style.bg(palette.match_background);
         }
         if view_idx == app.selected_view_row {
             style = Style::default()
-                .fg(Color::White)
-                .bg(BRAND_SELECTED_BG)
+                .fg(palette.selected_foreground)
+                .bg(palette.selected_background)
                 .add_modifier(Modifier::BOLD);
         }
 
@@ -128,11 +131,11 @@ fn render_table(frame: &mut Frame, area: Rect, app: &mut App) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .style(Style::default().fg(BRAND_BORDER))
+                .style(Style::default().fg(palette.border))
                 .title(Span::styled(
                     " Data ",
                     Style::default()
-                        .fg(Color::White)
+                        .fg(palette.header_foreground)
                         .add_modifier(Modifier::BOLD),
                 )),
         );
@@ -141,6 +144,7 @@ fn render_table(frame: &mut Frame, area: Rect, app: &mut App) {
 }
 
 fn render_status(frame: &mut Frame, area: Rect, app: &App) {
+    let palette = app.theme.palette;
     let mode = match app.mode {
         InputMode::Normal => "NORMAL",
         InputMode::Search => "SEARCH",
@@ -150,23 +154,29 @@ fn render_status(frame: &mut Frame, area: Rect, app: &App) {
     let line = Line::from(vec![
         Span::styled(
             format!(" {} ", mode),
-            Style::default().fg(Color::Black).bg(Color::Green),
+            Style::default()
+                .fg(palette.status_mode_foreground)
+                .bg(palette.status_mode_background),
         ),
         Span::raw("  "),
-        Span::styled(app.status.clone(), Style::default().fg(Color::White)),
+        Span::styled(
+            app.status.clone(),
+            Style::default().fg(palette.status_text_foreground),
+        ),
     ]);
 
     frame.render_widget(
         Paragraph::new(line).block(
             Block::default()
                 .borders(Borders::TOP)
-                .style(Style::default().fg(BRAND_BORDER)),
+                .style(Style::default().fg(palette.border)),
         ),
         area,
     );
 }
 
 fn render_help(frame: &mut Frame, area: Rect, app: &App) {
+    let palette = app.theme.palette;
     let query_hint = if app.source_kind == crate::data::SourceKind::Sqlite {
         ": SQL query"
     } else {
@@ -179,12 +189,13 @@ fn render_help(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(
         Paragraph::new(help)
             .wrap(Wrap { trim: true })
-            .style(Style::default().fg(Color::Gray)),
+            .style(Style::default().fg(palette.help_foreground)),
         area,
     );
 }
 
 fn render_input_overlay(frame: &mut Frame, app: &App) {
+    let palette = app.theme.palette;
     let area = centered_rect(70, 18, frame.size());
     frame.render_widget(Clear, area);
 
@@ -197,19 +208,19 @@ fn render_input_overlay(frame: &mut Frame, app: &App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title(format!(" {} ", title))
-        .style(Style::default().fg(BRAND_BORDER).bg(BRAND_BG));
+        .style(Style::default().fg(palette.border).bg(palette.background));
 
     let text = Paragraph::new(Line::from(vec![
         Span::styled(
             "> ",
             Style::default()
-                .fg(Color::LightBlue)
+                .fg(palette.input_prompt_foreground)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(value),
     ]))
     .block(block)
-    .style(Style::default().fg(Color::White));
+    .style(Style::default().fg(palette.input_text_foreground));
 
     frame.render_widget(text, area);
 }

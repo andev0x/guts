@@ -1,0 +1,14 @@
+preset = "nord"
+
+[colors]
+border = "#81a1c1"
+status_line_bg = "#2e3440"
+status_line_fg = "#eceff4"
+
+# Highlight
+selected_background = "#434c5e"
+selected_foreground = "#88c0d0" # Frost Blue
+
+
+number_fg = "#b48ead"  # Purple
+link = "#5e81ac"       # Sapphire

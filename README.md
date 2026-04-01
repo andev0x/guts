@@ -19,6 +19,8 @@ It is designed for speed and clarity when exploring CSV, JSON, and SQLite data d
 - Smart cell detection (URL, email, IP, number)
 - Open action for links/emails (`o`)
 - Copy selected cell to clipboard (`y`)
+- Theme system via `theme.toml` with built-in presets (Nord, Gravbox, Catppuccin, Monochrome)
+- Safe color fallback to 16 ANSI colors when `theme.toml` is missing or terminal lacks TrueColor
 
 ## Install
 
@@ -31,6 +33,9 @@ Build locally:
 ```bash
 cd guts
 cargo build --release
+
+cargo install --path .
+
 ```
 
 Prebuilt binaries:
@@ -42,6 +47,25 @@ Prebuilt binaries:
 ```bash
 cd guts
 cargo run -- <path/to/data.csv>
+```
+
+Initialize default theme config:
+
+```bash
+guts --init-config
+```
+> You’re running an older installed binary from ~/.cargo/bin/guts, not the newly built code.
+- Your installed binary help still shows Usage: guts [OPTIONS] <SOURCE> and has no --init-config.
+- The current local source does include it (local run shows Usage: guts [OPTIONS] [SOURCE] and --init-config).
+Use one of these:
+# from path
+```bash
+cargo install --path . --force
+or run directly without installing:
+cargo run -- --init-config
+Then verify:
+guts --help
+You should see --init-config in the options.
 ```
 
 Examples:
@@ -58,6 +82,42 @@ cargo run -- ./examples/app.db
 
 # SQLite custom SQL query
 cargo run -- ./examples/app.db --query "SELECT id, email FROM users LIMIT 100"
+```
+
+## Themes
+
+`guts` can load a theme from `theme.toml`.
+
+Config file discovery order:
+
+1. `GUTS_THEME_FILE` (absolute or relative path)
+2. `./theme.toml` (current working directory)
+3. `$XDG_CONFIG_HOME/guts/theme.toml`
+4. `$HOME/.config/guts/theme.toml`
+
+`guts --init-config` creates `$HOME/.config/guts/theme.toml` with a ready-to-edit default template.
+
+Built-in presets (`preset`):
+
+- `nord` - snow blue, cool, soothing (great at night)
+- `gravbox` - retro yellow, warm
+- `catppuccin` - modern pastel
+- `monochrome` - white/black/gray minimalist palette
+
+Important fallback behavior:
+
+- If no `theme.toml` is found, `guts` automatically uses a basic 16-color ANSI palette.
+- If the terminal does not report TrueColor support, `guts` also falls back to the same ANSI palette.
+
+Example `~/.config/guts/theme.toml`:
+
+```toml
+preset = "nord"
+
+[colors]
+border = "#81A1C1"
+selected_background = "#5E81AC"
+status_mode_background = "#A3BE8C"
 ```
 
 ## Keybindings
@@ -96,4 +156,4 @@ Contributions are welcome. Please read `CONTRIBUTING.md` before opening pull req
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. See [LICENSE](License).
