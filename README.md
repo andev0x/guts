@@ -1,5 +1,7 @@
 # guts
 
+[![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/<repo>/actions/workflows/ci.yml)
+
 `guts` is a modern, keyboard-first, terminal data explorer for engineers.
 
 It is designed for speed and clarity when exploring CSV, JSON, and SQLite data directly in the terminal.
@@ -30,6 +32,10 @@ Build locally:
 cd guts
 cargo build --release
 ```
+
+Prebuilt binaries:
+
+- Tagged releases (`v*`) automatically publish Linux/macOS/Windows binaries in GitHub Releases.
 
 ## Usage
 
