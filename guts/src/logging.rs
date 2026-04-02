@@ -3,7 +3,7 @@ use crate::error::AppResult;
 use std::fs;
 use std::path::PathBuf;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 pub fn init_logging(config: &LogConfig) -> AppResult<()> {
     // Expand tilde in log file path
@@ -105,9 +105,11 @@ mod tests {
     fn test_expand_path() {
         let path = "~/.local/share/guts/guts.log";
         let expanded = expand_path(path).unwrap();
-        assert!(expanded
-            .to_string_lossy()
-            .contains(".local/share/guts/guts.log"));
+        assert!(
+            expanded
+                .to_string_lossy()
+                .contains(".local/share/guts/guts.log")
+        );
     }
 
     #[test]

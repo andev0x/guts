@@ -1,4 +1,5 @@
 use crate::error::{AppError, AppResult};
+use crate::keybinding::KeybindingConfig;
 use crate::theme::ThemeConfig;
 use serde::{Deserialize, Serialize};
 use std::env;
@@ -19,6 +20,8 @@ pub struct Config {
     pub logging: LogConfig,
     #[serde(default)]
     pub theme: ThemeConfig,
+    #[serde(default)]
+    pub keybindings: KeybindingConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -189,6 +192,7 @@ impl Default for Config {
             export: ExportConfig::default(),
             logging: LogConfig::default(),
             theme: ThemeConfig::default(),
+            keybindings: KeybindingConfig::default(),
         }
     }
 }

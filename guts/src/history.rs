@@ -1,6 +1,7 @@
 use crate::data::SourceKind;
 use crate::error::AppResult;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use std::time::SystemTime;
@@ -30,6 +31,10 @@ pub struct QueryHistory {
     max_size: usize,
     #[serde(skip)]
     current_idx: Option<usize>,
+    #[serde(skip)]
+    current_filtered_pos: Option<usize>,
+    #[serde(skip)]
+    current_filtered_source: Option<SourceKind>,
 }
 
 impl QueryHistory {
@@ -38,6 +43,8 @@ impl QueryHistory {
             entries: Vec::new(),
             max_size,
             current_idx: None,
+            current_filtered_pos: None,
+            current_filtered_source: None,
         }
     }
 
@@ -50,6 +57,8 @@ impl QueryHistory {
         let contents = fs::read_to_string(&path)?;
         let mut history: QueryHistory = serde_json::from_str(&contents)?;
         history.current_idx = None; // Reset navigation on load
+        history.current_filtered_pos = None;
+        history.current_filtered_source = None;
         Ok(history)
     }
 
@@ -82,6 +91,17 @@ impl QueryHistory {
 
         // Reset navigation
         self.current_idx = None;
+        self.current_filtered_pos = None;
+        self.current_filtered_source = None;
+    }
+
+    pub fn set_max_size(&mut self, max_size: usize) {
+        self.max_size = max_size;
+        if self.entries.len() > self.max_size {
+            let excess = self.entries.len() - self.max_size;
+            self.entries.drain(0..excess);
+        }
+        self.reset_navigation();
     }
 
     #[allow(dead_code)]
@@ -94,6 +114,7 @@ impl QueryHistory {
             .collect()
     }
 
+    #[allow(dead_code)]
     pub fn get_prev(&mut self) -> Option<&str> {
         if self.entries.is_empty() {
             return None;
@@ -120,6 +141,7 @@ impl QueryHistory {
             .and_then(|i| self.entries.get(i).map(|e| e.query.as_str()))
     }
 
+    #[allow(dead_code)]
     pub fn get_next(&mut self) -> Option<&str> {
         match self.current_idx {
             None => None, // No navigation in progress
@@ -137,8 +159,80 @@ impl QueryHistory {
         }
     }
 
+    pub fn get_prev_for_source(&mut self, source_kind: SourceKind) -> Option<&str> {
+        if self.current_filtered_source != Some(source_kind) {
+            self.current_filtered_source = Some(source_kind);
+            self.current_filtered_pos = None;
+        }
+
+        let positions = self.filtered_positions(source_kind);
+        if positions.is_empty() {
+            return None;
+        }
+
+        match self.current_filtered_pos {
+            None => {
+                self.current_filtered_pos = Some(positions.len() - 1);
+            }
+            Some(pos) if pos > 0 => {
+                self.current_filtered_pos = Some(pos - 1);
+            }
+            Some(_) => {}
+        }
+
+        self.current_filtered_pos
+            .and_then(|pos| positions.get(pos).copied())
+            .and_then(|idx| self.entries.get(idx).map(|entry| entry.query.as_str()))
+    }
+
+    pub fn get_next_for_source(&mut self, source_kind: SourceKind) -> Option<&str> {
+        if self.current_filtered_source != Some(source_kind) {
+            self.current_filtered_source = Some(source_kind);
+            self.current_filtered_pos = None;
+            return None;
+        }
+
+        let positions = self.filtered_positions(source_kind);
+        if positions.is_empty() {
+            return None;
+        }
+
+        match self.current_filtered_pos {
+            None => None,
+            Some(pos) if pos + 1 < positions.len() => {
+                self.current_filtered_pos = Some(pos + 1);
+                self.current_filtered_pos
+                    .and_then(|new_pos| positions.get(new_pos).copied())
+                    .and_then(|idx| self.entries.get(idx).map(|entry| entry.query.as_str()))
+            }
+            Some(_) => {
+                self.current_filtered_pos = None;
+                None
+            }
+        }
+    }
+
+    pub fn recent_queries_for_source(&self, source_kind: SourceKind, limit: usize) -> Vec<String> {
+        let mut seen = HashSet::new();
+        self.entries
+            .iter()
+            .rev()
+            .filter(|entry| entry.source_kind == source_kind)
+            .filter_map(|entry| {
+                if seen.insert(entry.query.clone()) {
+                    Some(entry.query.clone())
+                } else {
+                    None
+                }
+            })
+            .take(limit)
+            .collect()
+    }
+
     pub fn reset_navigation(&mut self) {
         self.current_idx = None;
+        self.current_filtered_pos = None;
+        self.current_filtered_source = None;
     }
 
     #[allow(dead_code)]
@@ -148,6 +242,14 @@ impl QueryHistory {
 
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
+    }
+
+    fn filtered_positions(&self, source_kind: SourceKind) -> Vec<usize> {
+        self.entries
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, entry)| (entry.source_kind == source_kind).then_some(idx))
+            .collect()
     }
 }
 

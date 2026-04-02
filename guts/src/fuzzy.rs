@@ -1,11 +1,12 @@
-use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::skim::SkimMatcherV2;
 
 /// Result of a fuzzy search match containing the index and score
 #[derive(Debug, Clone)]
 pub struct FuzzyMatch {
     pub index: usize,
     pub score: i64,
+    pub matched_indices: Vec<usize>,
 }
 
 /// Performs fuzzy search on a list of strings and returns matches sorted by score
@@ -17,6 +18,7 @@ pub fn fuzzy_search(items: &[String], pattern: &str) -> Vec<FuzzyMatch> {
             .map(|(idx, _)| FuzzyMatch {
                 index: idx,
                 score: 0,
+                matched_indices: Vec::new(),
             })
             .collect();
     }
@@ -27,8 +29,12 @@ pub fn fuzzy_search(items: &[String], pattern: &str) -> Vec<FuzzyMatch> {
         .enumerate()
         .filter_map(|(idx, item)| {
             matcher
-                .fuzzy_match(item, pattern)
-                .map(|score| FuzzyMatch { index: idx, score })
+                .fuzzy_indices(item, pattern)
+                .map(|(score, indices)| FuzzyMatch {
+                    index: idx,
+                    score,
+                    matched_indices: indices,
+                })
         })
         .collect();
 
@@ -38,6 +44,7 @@ pub fn fuzzy_search(items: &[String], pattern: &str) -> Vec<FuzzyMatch> {
 }
 
 /// Performs fuzzy search on column headers
+#[allow(dead_code)]
 pub fn fuzzy_search_columns(headers: &[String], pattern: &str) -> Vec<FuzzyMatch> {
     fuzzy_search(headers, pattern)
 }

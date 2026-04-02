@@ -31,6 +31,8 @@ It is designed for speed and clarity when exploring CSV, JSON, and SQLite data d
 - Vim-style navigation (`h/j/k/l`, `g`, `G`, page up/down)
 - Virtual scrolling for large datasets
 - Incremental search (`/`, `n`, `N`)
+- Fuzzy search overlay across columns, table rows, and query history (`Ctrl-f`, `Tab`)
+- Focus-aware highlighting for active row + column and fuzzy/search matches
 - Query/filter mode (`:`)
   - CSV/JSON: text filter across all columns
   - SQLite/PostgreSQL/MySQL: execute SQL queries and non-SELECT statements
@@ -43,6 +45,7 @@ It is designed for speed and clarity when exploring CSV, JSON, and SQLite data d
 - Copy selected cell to clipboard (`y`)
 - Theme system via `theme.toml` with built-in presets (Nord, Gravbox, Catppuccin, Monochrome)
 - Safe color fallback to 16 ANSI colors when `theme.toml` is missing or terminal lacks TrueColor
+- Configurable keybindings via `config.toml` (`[keybindings]`)
 
 ## Install
 
@@ -165,15 +168,39 @@ status_mode_background = "#A3BE8C"
 
 ## Keybindings
 
-- `q`: quit
-- `h/j/k/l` or arrow keys: move cell/row selection
-- `g` / `G`: jump to top/bottom
-- `PageUp` / `PageDown`: move by page
-- `/`: search mode
-- `n` / `N`: next/previous search result
-- `:`: query/filter mode
-- `o`: open selected URL/email
-- `y`: copy selected cell value
+- Navigation
+  - `h/j/k/l` or arrow keys: move cell/row selection
+  - `g` / `G`: jump to top/bottom
+  - `PageUp` / `PageDown`: move by page
+- Search and filtering
+  - `/`: search mode
+  - `n` / `N`: next/previous search result
+  - `:`: query/filter mode
+  - `Ctrl-f`: fuzzy overlay
+  - `Tab` (inside fuzzy): cycle target (`Columns` -> `Tables/Rows` -> `History`)
+  - `Ctrl-p` / `Ctrl-n` (inside query): previous/next query history for current source type
+- Actions
+  - `o`: open selected URL/email
+  - `y`: copy selected cell value
+  - `q`: quit
+
+Keybindings are configurable in `~/.config/guts/config.toml`:
+
+```toml
+[keybindings.navigation]
+left = ["h", "Left"]
+right = ["l", "Right"]
+up = ["k", "Up"]
+down = ["j", "Down"]
+
+[keybindings.search]
+fuzzy_mode = ["Ctrl-f"]
+fuzzy_cycle_scope = ["Tab"]
+
+[keybindings.actions]
+copy = ["y"]
+open = ["o"]
+```
 
 ## Project Status
 

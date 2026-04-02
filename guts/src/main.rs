@@ -7,6 +7,7 @@ mod error;
 mod export;
 mod fuzzy;
 mod history;
+mod keybinding;
 mod logging;
 mod theme;
 mod ui;
@@ -17,15 +18,16 @@ use std::time::Duration;
 
 use app::{App, InputMode};
 use clap::Parser;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{self, Event, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::execute;
 use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
 use data::DataSet;
 use error::AppResult;
-use ratatui::backend::CrosstermBackend;
+use keybinding::Keymap;
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 use theme::load_active_theme;
 
 #[derive(Debug, Parser)]
@@ -255,7 +257,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dataset = DataSet::from_source(source, cli.query.as_deref())
         .map_err(|e| format!("Failed to open source: {e}"))?;
     let theme = load_active_theme();
-    let mut app = App::new(dataset, theme);
+    let keymap = Keymap::from_config(&config.keybindings);
+    let mut app = App::new(dataset, theme, keymap, config.general.max_history);
 
     let terminal_result = run_terminal(&mut app);
     if let Err(err) = terminal_result {
@@ -283,6 +286,7 @@ fn run_terminal(app: &mut App) -> AppResult<()> {
 
 fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> AppResult<()> {
     loop {
+        app.tick_feedback();
         terminal.draw(|frame| ui::draw(frame, app))?;
 
         if event::poll(Duration::from_millis(100))? {
@@ -315,192 +319,173 @@ fn handle_key(app: &mut App, key: KeyEvent) -> AppResult<bool> {
 }
 
 fn handle_normal_mode(app: &mut App, key: KeyEvent) -> AppResult<bool> {
-    match key.code {
-        KeyCode::Char('q') => return Ok(true),
-        KeyCode::Char('j') | KeyCode::Down => app.move_down(),
-        KeyCode::Char('k') | KeyCode::Up => app.move_up(),
-        KeyCode::Char('h') | KeyCode::Left => app.move_left(),
-        KeyCode::Char('l') | KeyCode::Right => app.move_right(),
-        KeyCode::PageDown => app.page_down(20),
-        KeyCode::PageUp => app.page_up(20),
-        KeyCode::Char('g') => app.go_top(),
-        KeyCode::Char('G') => app.go_bottom(),
-        KeyCode::Char('/') => {
-            app.mode = InputMode::Search;
-            app.set_status("Search mode");
-        }
-        KeyCode::Char(':') => {
-            app.mode = InputMode::Query;
-            app.set_status("Query mode");
-        }
-        KeyCode::Char('f')
-            if key
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-        {
-            app.mode = InputMode::FuzzySearch;
-            app.fuzzy_input.clear();
-            app.refresh_fuzzy_matches();
-            app.set_status("Fuzzy search mode");
-        }
-        KeyCode::Char('n') => app.search_next(),
-        KeyCode::Char('N') => app.search_prev(),
-        KeyCode::Char('o') => app.perform_open_action(),
-        KeyCode::Char('y') => app.perform_copy_action(),
-        _ => {}
+    if Keymap::is_match(&app.keymap.quit, key) {
+        return Ok(true);
+    }
+    if Keymap::is_match(&app.keymap.down, key) {
+        app.move_down();
+    } else if Keymap::is_match(&app.keymap.up, key) {
+        app.move_up();
+    } else if Keymap::is_match(&app.keymap.left, key) {
+        app.move_left();
+    } else if Keymap::is_match(&app.keymap.right, key) {
+        app.move_right();
+    } else if Keymap::is_match(&app.keymap.page_down, key) {
+        app.page_down(20);
+    } else if Keymap::is_match(&app.keymap.page_up, key) {
+        app.page_up(20);
+    } else if Keymap::is_match(&app.keymap.top, key) {
+        app.go_top();
+    } else if Keymap::is_match(&app.keymap.bottom, key) {
+        app.go_bottom();
+    } else if Keymap::is_match(&app.keymap.search_mode, key) {
+        app.mode = InputMode::Search;
+        app.set_status("Search mode");
+    } else if Keymap::is_match(&app.keymap.query_mode, key) {
+        app.mode = InputMode::Query;
+        app.set_status("Query mode");
+    } else if Keymap::is_match(&app.keymap.fuzzy_mode, key) {
+        app.mode = InputMode::FuzzySearch;
+        app.fuzzy_input.clear();
+        app.refresh_fuzzy_matches();
+        app.set_status("Fuzzy search mode");
+    } else if Keymap::is_match(&app.keymap.next_match, key) {
+        app.search_next();
+    } else if Keymap::is_match(&app.keymap.prev_match, key) {
+        app.search_prev();
+    } else if Keymap::is_match(&app.keymap.open, key) {
+        app.perform_open_action();
+    } else if Keymap::is_match(&app.keymap.copy, key) {
+        app.perform_copy_action();
     }
     Ok(false)
 }
 
 fn handle_search_mode(app: &mut App, key: KeyEvent) {
-    match key.code {
-        KeyCode::Esc => {
-            app.mode = InputMode::Normal;
-            app.set_status("Search cancelled");
-        }
-        KeyCode::Enter => {
-            app.refresh_search_matches();
-            app.mode = InputMode::Normal;
-        }
-        KeyCode::Backspace => {
-            app.search_input.pop();
-            app.refresh_search_matches();
-        }
-        KeyCode::Char(ch) => {
-            app.search_input.push(ch);
-            app.refresh_search_matches();
-        }
-        _ => {}
+    if Keymap::is_match(&app.keymap.cancel, key) {
+        app.mode = InputMode::Normal;
+        app.set_status("Search cancelled");
+    } else if Keymap::is_match(&app.keymap.confirm, key) {
+        app.refresh_search_matches();
+        app.mode = InputMode::Normal;
+    } else if Keymap::is_match(&app.keymap.backspace, key) {
+        app.search_input.pop();
+        app.refresh_search_matches();
+    } else if let Some(ch) = text_input_char(key) {
+        app.search_input.push(ch);
+        app.refresh_search_matches();
     }
 }
 
 fn handle_fuzzy_search_mode(app: &mut App, key: KeyEvent) {
-    match key.code {
-        KeyCode::Esc => {
-            app.mode = InputMode::Normal;
-            app.set_status("Fuzzy search cancelled");
-        }
-        KeyCode::Enter => {
-            app.fuzzy_select_column();
-            app.mode = InputMode::Normal;
-        }
-        KeyCode::Backspace => {
-            app.fuzzy_input.pop();
-            app.refresh_fuzzy_matches();
-        }
-        KeyCode::Char(ch)
-            if !key
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-        {
-            app.fuzzy_input.push(ch);
-            app.refresh_fuzzy_matches();
-        }
-        KeyCode::Down | KeyCode::Char('j') => {
-            app.fuzzy_move_down();
-        }
-        KeyCode::Up | KeyCode::Char('k') => {
-            app.fuzzy_move_up();
-        }
-        _ => {}
+    if Keymap::is_match(&app.keymap.cancel, key) {
+        app.mode = InputMode::Normal;
+        app.set_status("Fuzzy search cancelled");
+    } else if Keymap::is_match(&app.keymap.confirm, key) {
+        app.mode = app.fuzzy_select();
+    } else if Keymap::is_match(&app.keymap.backspace, key) {
+        app.fuzzy_input.pop();
+        app.refresh_fuzzy_matches();
+    } else if Keymap::is_match(&app.keymap.fuzzy_cycle_scope, key) {
+        app.cycle_fuzzy_target();
+    } else if Keymap::is_match(&app.keymap.down, key) {
+        app.fuzzy_move_down();
+    } else if Keymap::is_match(&app.keymap.up, key) {
+        app.fuzzy_move_up();
+    } else if let Some(ch) = text_input_char(key) {
+        app.fuzzy_input.push(ch);
+        app.refresh_fuzzy_matches();
     }
 }
 
 fn handle_query_mode(app: &mut App, key: KeyEvent) -> AppResult<bool> {
-    match key.code {
-        KeyCode::Esc => {
+    if Keymap::is_match(&app.keymap.cancel, key) {
+        app.mode = InputMode::Normal;
+        app.query_history.reset_navigation();
+        app.set_status("Query cancelled");
+    } else if Keymap::is_match(&app.keymap.history_prev, key) {
+        app.history_prev();
+    } else if Keymap::is_match(&app.keymap.history_next, key) {
+        app.history_next();
+    } else if Keymap::is_match(&app.keymap.confirm, key) {
+        let query = app.query_input.trim().to_string();
+        if query.is_empty() {
+            app.apply_filter_query();
             app.mode = InputMode::Normal;
-            app.query_history.reset_navigation();
-            app.set_status("Query cancelled");
+            return Ok(false);
         }
-        KeyCode::Char('p')
-            if key
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-        {
-            app.history_prev();
-        }
-        KeyCode::Char('n')
-            if key
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-        {
-            app.history_next();
-        }
-        KeyCode::Enter => {
-            let query = app.query_input.trim().to_string();
-            if query.is_empty() {
-                app.apply_filter_query();
-                app.mode = InputMode::Normal;
-                return Ok(false);
-            }
 
-            let mut success = true;
+        let mut success = true;
 
-            if matches!(
-                app.source_kind,
-                data::SourceKind::Sqlite
-                    | data::SourceKind::Postgres
-                    | data::SourceKind::MySql
-                    | data::SourceKind::Mongo
-            ) {
-                if let Some(sql_file) = parse_sql_file_command(&query) {
-                    match data::execute_sql_file(&app.source_locator, app.source_kind, &sql_file) {
-                        Ok(message) => {
-                            app.set_status(message);
-                        }
-                        Err(err) => {
-                            app.set_status(format!("SQL file error: {err}"));
-                            success = false;
-                        }
+        if matches!(
+            app.source_kind,
+            data::SourceKind::Sqlite
+                | data::SourceKind::Postgres
+                | data::SourceKind::MySql
+                | data::SourceKind::Mongo
+        ) {
+            if let Some(sql_file) = parse_sql_file_command(&query) {
+                match data::execute_sql_file(&app.source_locator, app.source_kind, &sql_file) {
+                    Ok(message) => {
+                        app.set_status(message);
                     }
-                } else {
-                    match data::execute_query(&app.source_locator, app.source_kind, &query) {
-                        Ok(data::QueryExecution::Data(dataset, message)) => {
-                            app.replace_dataset(dataset);
-                            app.set_status(message);
-                        }
-                        Ok(data::QueryExecution::Message(message)) => {
-                            app.set_status(message);
-                        }
-                        Err(err) => {
-                            app.set_status(format!("Query error: {err}"));
-                            success = false;
-                        }
+                    Err(err) => {
+                        app.set_status(format!("SQL file error: {err}"));
+                        success = false;
                     }
                 }
             } else {
-                app.apply_filter_query();
+                match data::execute_query(&app.source_locator, app.source_kind, &query) {
+                    Ok(data::QueryExecution::Data(dataset, message)) => {
+                        app.replace_dataset(dataset);
+                        app.set_status(message);
+                    }
+                    Ok(data::QueryExecution::Message(message)) => {
+                        app.set_status(message);
+                    }
+                    Err(err) => {
+                        app.set_status(format!("Query error: {err}"));
+                        success = false;
+                    }
+                }
             }
+        } else {
+            app.apply_filter_query();
+        }
 
-            // Add to history if it's a database query
-            if matches!(
-                app.source_kind,
-                data::SourceKind::Sqlite
-                    | data::SourceKind::Postgres
-                    | data::SourceKind::MySql
-                    | data::SourceKind::Mongo
-            ) {
-                app.add_to_history(query, success);
-            }
+        if matches!(
+            app.source_kind,
+            data::SourceKind::Sqlite
+                | data::SourceKind::Postgres
+                | data::SourceKind::MySql
+                | data::SourceKind::Mongo
+        ) {
+            app.add_to_history(query, success);
+        }
 
-            app.mode = InputMode::Normal;
-        }
-        KeyCode::Backspace => {
-            app.query_input.pop();
-            app.query_history.reset_navigation();
-        }
-        KeyCode::Char(ch)
-            if !key
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-        {
-            app.query_input.push(ch);
-            app.query_history.reset_navigation();
-        }
-        _ => {}
+        app.mode = InputMode::Normal;
+    } else if Keymap::is_match(&app.keymap.backspace, key) {
+        app.query_input.pop();
+        app.query_history.reset_navigation();
+    } else if let Some(ch) = text_input_char(key) {
+        app.query_input.push(ch);
+        app.query_history.reset_navigation();
     }
     Ok(false)
+}
+
+fn text_input_char(key: KeyEvent) -> Option<char> {
+    if key
+        .modifiers
+        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+    {
+        return None;
+    }
+
+    match key.code {
+        crossterm::event::KeyCode::Char(ch) => Some(ch),
+        _ => None,
+    }
 }
 
 fn ensure_sqlite_source(
