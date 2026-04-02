@@ -485,7 +485,7 @@ fn run_mysql_select_like(
     conn: &mut mysql::PooledConn,
     query: &str,
 ) -> AppResult<(Vec<String>, Vec<Vec<String>>)> {
-    let mut result = conn.query_iter(query)?;
+    let result = conn.query_iter(query)?;
     let mut headers = result
         .columns()
         .as_ref()
@@ -494,7 +494,7 @@ fn run_mysql_select_like(
         .collect::<Vec<_>>();
     let mut rows = Vec::new();
 
-    while let Some(row_result) = result.next() {
+    for row_result in result {
         let row = row_result?;
         if headers.is_empty() {
             headers = row
