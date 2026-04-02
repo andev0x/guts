@@ -177,11 +177,7 @@ fn render_status(frame: &mut Frame, area: Rect, app: &App) {
 
 fn render_help(frame: &mut Frame, area: Rect, app: &App) {
     let palette = app.theme.palette;
-    let query_hint = if app.source_kind == crate::data::SourceKind::Sqlite {
-        ": SQL query"
-    } else {
-        ": filter"
-    };
+    let query_hint = crate::data::source_query_hint(app.source_kind);
     let help = format!(
         "q quit  h/j/k/l move  g/G top/bottom  PgUp/PgDn page  / search  n/N next/prev  {}  o open  y copy",
         query_hint

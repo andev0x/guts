@@ -10,3 +10,7 @@ guts/.cargo/
 *.db-wal
 *.sqlite-shm
 *.sqlite-wal
+
+# Folder tests
+test-files
+

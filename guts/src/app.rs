@@ -1,10 +1,8 @@
-use std::cmp::{max, min};
-use std::path::PathBuf;
-
 use crate::action::Action;
 use crate::data::{DataSet, SourceKind};
 use crate::detect::{CellKind, detect_kind};
 use crate::theme::ActiveTheme;
+use std::cmp::{max, min};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputMode {
@@ -27,7 +25,7 @@ pub struct App {
     pub status: String,
     pub mode: InputMode,
     pub source_label: String,
-    pub source_path: PathBuf,
+    pub source_locator: String,
     pub source_kind: SourceKind,
     pub theme: ActiveTheme,
 }
@@ -53,7 +51,7 @@ impl App {
             status: theme.initial_status(),
             mode: InputMode::Normal,
             source_label: dataset.source,
-            source_path: dataset.source_path,
+            source_locator: dataset.source_locator,
             source_kind: dataset.kind,
             theme,
         }
@@ -71,7 +69,7 @@ impl App {
         self.selected_col = 0;
         self.scroll = 0;
         self.source_label = dataset.source;
-        self.source_path = dataset.source_path;
+        self.source_locator = dataset.source_locator;
         self.source_kind = dataset.kind;
         self.refresh_search_matches();
     }
