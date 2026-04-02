@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, Wrap};
-use ratatui::Frame;
 
 use crate::app::{App, FeedbackKind, FuzzyItemKind, FuzzyTarget, InputMode};
 use crate::detect::CellKind;
