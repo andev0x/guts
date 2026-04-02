@@ -1,6 +1,8 @@
 use crate::action::Action;
 use crate::data::{DataSet, SourceKind};
-use crate::detect::{CellKind, detect_kind};
+use crate::detect::{detect_kind, CellKind};
+use crate::fuzzy::{fuzzy_search_columns, FuzzyMatch};
+use crate::history::QueryHistory;
 use crate::theme::ActiveTheme;
 use std::cmp::{max, min};
 
@@ -9,6 +11,7 @@ pub enum InputMode {
     Normal,
     Search,
     Query,
+    FuzzySearch,
 }
 
 pub struct App {
@@ -22,6 +25,10 @@ pub struct App {
     pub search_matches: Vec<usize>,
     pub search_match_idx: usize,
     pub query_input: String,
+    pub fuzzy_input: String,
+    pub fuzzy_matches: Vec<FuzzyMatch>,
+    pub fuzzy_selected_idx: usize,
+    pub query_history: QueryHistory,
     pub status: String,
     pub mode: InputMode,
     pub source_label: String,
@@ -33,6 +40,8 @@ pub struct App {
 impl App {
     pub fn new(dataset: DataSet, theme: ActiveTheme) -> Self {
         let view_rows = (0..dataset.rows.len()).collect::<Vec<_>>();
+        let query_history = QueryHistory::load().unwrap_or_else(|_| QueryHistory::new(500));
+
         Self {
             headers: if dataset.headers.is_empty() {
                 fallback_headers(&dataset.rows)
@@ -48,6 +57,10 @@ impl App {
             search_matches: Vec::new(),
             search_match_idx: 0,
             query_input: String::new(),
+            fuzzy_input: String::new(),
+            fuzzy_matches: Vec::new(),
+            fuzzy_selected_idx: 0,
+            query_history,
             status: theme.initial_status(),
             mode: InputMode::Normal,
             source_label: dataset.source,
@@ -294,6 +307,58 @@ impl App {
 
     pub fn is_search_match_view_row(&self, view_idx: usize) -> bool {
         self.search_matches.binary_search(&view_idx).is_ok()
+    }
+
+    pub fn refresh_fuzzy_matches(&mut self) {
+        self.fuzzy_matches = fuzzy_search_columns(&self.headers, &self.fuzzy_input);
+        self.fuzzy_selected_idx = 0;
+    }
+
+    pub fn fuzzy_move_down(&mut self) {
+        if self.fuzzy_selected_idx + 1 < self.fuzzy_matches.len() {
+            self.fuzzy_selected_idx += 1;
+        }
+    }
+
+    pub fn fuzzy_move_up(&mut self) {
+        if self.fuzzy_selected_idx > 0 {
+            self.fuzzy_selected_idx -= 1;
+        }
+    }
+
+    pub fn fuzzy_select_column(&mut self) {
+        if let Some(fuzzy_match) = self.fuzzy_matches.get(self.fuzzy_selected_idx) {
+            self.selected_col = fuzzy_match.index;
+            self.set_status(format!(
+                "Selected column: {}",
+                self.headers[fuzzy_match.index]
+            ));
+        }
+    }
+
+    pub fn history_prev(&mut self) {
+        if let Some(query) = self.query_history.get_prev() {
+            self.query_input = query.to_string();
+        } else if !self.query_history.is_empty() {
+            self.set_status("At oldest history entry");
+        }
+    }
+
+    pub fn history_next(&mut self) {
+        if let Some(query) = self.query_history.get_next() {
+            self.query_input = query.to_string();
+        } else {
+            // Reached the end, clear input
+            self.query_input.clear();
+        }
+    }
+
+    pub fn add_to_history(&mut self, query: String, success: bool) {
+        use crate::history::QueryEntry;
+        self.query_history
+            .add(QueryEntry::new(query, self.source_kind, success));
+        // Save history asynchronously (best effort, ignore errors)
+        let _ = self.query_history.save();
     }
 }
 

@@ -1,8 +1,8 @@
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, Wrap};
+use ratatui::Frame;
 
 use crate::app::{App, InputMode};
 use crate::detect::CellKind;
@@ -149,6 +149,7 @@ fn render_status(frame: &mut Frame, area: Rect, app: &App) {
         InputMode::Normal => "NORMAL",
         InputMode::Search => "SEARCH",
         InputMode::Query => "QUERY",
+        InputMode::FuzzySearch => "FUZZY",
     };
 
     let line = Line::from(vec![
@@ -179,7 +180,7 @@ fn render_help(frame: &mut Frame, area: Rect, app: &App) {
     let palette = app.theme.palette;
     let query_hint = crate::data::source_query_hint(app.source_kind);
     let help = format!(
-        "q quit  h/j/k/l move  g/G top/bottom  PgUp/PgDn page  / search  n/N next/prev  {}  o open  y copy",
+        "q quit  h/j/k/l move  g/G top/bottom  PgUp/PgDn page  / search  n/N next/prev  Ctrl-f fuzzy  {}  Ctrl-p/n history  o open  y copy",
         query_hint
     );
     frame.render_widget(
@@ -192,33 +193,107 @@ fn render_help(frame: &mut Frame, area: Rect, app: &App) {
 
 fn render_input_overlay(frame: &mut Frame, app: &App) {
     let palette = app.theme.palette;
-    let area = centered_rect(70, 18, frame.size());
-    frame.render_widget(Clear, area);
 
-    let (title, value) = match app.mode {
-        InputMode::Search => ("Search", app.search_input.as_str()),
-        InputMode::Query => ("Query", app.query_input.as_str()),
-        InputMode::Normal => ("", ""),
-    };
+    match app.mode {
+        InputMode::FuzzySearch => render_fuzzy_search_overlay(frame, app),
+        _ => {
+            let area = centered_rect(70, 18, frame.size());
+            frame.render_widget(Clear, area);
+
+            let (title, value) = match app.mode {
+                InputMode::Search => ("Search", app.search_input.as_str()),
+                InputMode::Query => ("Query", app.query_input.as_str()),
+                InputMode::Normal => ("", ""),
+                InputMode::FuzzySearch => unreachable!(),
+            };
+
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .title(format!(" {} ", title))
+                .style(Style::default().fg(palette.border).bg(palette.background));
+
+            let text = Paragraph::new(Line::from(vec![
+                Span::styled(
+                    "> ",
+                    Style::default()
+                        .fg(palette.input_prompt_foreground)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(value),
+            ]))
+            .block(block)
+            .style(Style::default().fg(palette.input_text_foreground));
+
+            frame.render_widget(text, area);
+        }
+    }
+}
+
+fn render_fuzzy_search_overlay(frame: &mut Frame, app: &App) {
+    let palette = app.theme.palette;
+    let area = centered_rect(70, 40, frame.size());
+    frame.render_widget(Clear, area);
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(format!(" {} ", title))
+        .title(" Fuzzy Column Search ")
         .style(Style::default().fg(palette.border).bg(palette.background));
 
-    let text = Paragraph::new(Line::from(vec![
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    // Split into input area and results area
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Min(1)])
+        .split(inner);
+
+    // Render input
+    let input_line = Line::from(vec![
         Span::styled(
             "> ",
             Style::default()
                 .fg(palette.input_prompt_foreground)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::raw(value),
-    ]))
-    .block(block)
-    .style(Style::default().fg(palette.input_text_foreground));
+        Span::raw(&app.fuzzy_input),
+    ]);
+    frame.render_widget(
+        Paragraph::new(input_line).style(Style::default().fg(palette.input_text_foreground)),
+        chunks[0],
+    );
 
-    frame.render_widget(text, area);
+    // Render matches
+    let max_visible = (chunks[1].height as usize).saturating_sub(1);
+
+    let match_lines: Vec<Line> = app
+        .fuzzy_matches
+        .iter()
+        .take(max_visible)
+        .enumerate()
+        .map(|(idx, fuzzy_match)| {
+            let column_name = &app.headers[fuzzy_match.index];
+            let is_selected = idx == app.fuzzy_selected_idx;
+
+            let prefix = if is_selected { "● " } else { "○ " };
+            let style = if is_selected {
+                Style::default()
+                    .fg(palette.selected_foreground)
+                    .bg(palette.selected_background)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(palette.row_foreground)
+            };
+
+            Line::from(Span::styled(
+                format!("{}{} (score: {})", prefix, column_name, fuzzy_match.score),
+                style,
+            ))
+        })
+        .collect();
+
+    let matches_para = Paragraph::new(match_lines);
+    frame.render_widget(matches_para, chunks[1]);
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, rect: Rect) -> Rect {

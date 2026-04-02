@@ -1,8 +1,13 @@
 mod action;
 mod app;
+mod config;
 mod data;
 mod detect;
 mod error;
+mod export;
+mod fuzzy;
+mod history;
+mod logging;
 mod theme;
 mod ui;
 
@@ -15,13 +20,13 @@ use clap::Parser;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use crossterm::execute;
 use crossterm::terminal::{
-    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use data::DataSet;
 use error::AppResult;
-use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
-use theme::{InitConfigOutcome, init_default_config, load_active_theme};
+use ratatui::Terminal;
+use theme::load_active_theme;
 
 #[derive(Debug, Parser)]
 #[command(name = "guts", version, about = "Fast terminal data explorer")]
@@ -67,6 +72,21 @@ struct Cli {
 
     #[arg(
         long,
+        value_name = "FILE",
+        help = "Export current view/query results to file (format auto-detected from extension: .csv, .json, .sql)",
+        requires = "source"
+    )]
+    export: Option<PathBuf>,
+
+    #[arg(
+        long,
+        help = "Include CREATE TABLE statement in SQL exports",
+        requires = "export"
+    )]
+    export_with_schema: bool,
+
+    #[arg(
+        long,
         value_name = "BACKUP_PATH",
         help = "Backup SQLite database to file",
         requires = "source"
@@ -101,18 +121,54 @@ struct Cli {
         conflicts_with = "open_ui"
     )]
     init_config: bool,
+
+    #[arg(long, help = "Show current configuration file path")]
+    config_path: bool,
+
+    #[arg(long, help = "Print merged configuration (with overrides)")]
+    print_config: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    if cli.init_config {
-        match init_default_config()? {
-            InitConfigOutcome::Created(path) => {
-                println!("Created default theme config at {}", path.display());
+    // Load configuration
+    let config = config::Config::load().unwrap_or_default();
+
+    // Initialize logging (best effort, don't fail if it doesn't work)
+    let _ = logging::init_logging(&config.logging);
+
+    tracing::info!("Starting guts");
+
+    // Handle config management commands
+    if cli.config_path {
+        match config::config_file_path() {
+            Ok(path) => {
+                println!("{}", path.display());
+                if path.exists() {
+                    println!("(file exists)");
+                } else {
+                    println!("(file does not exist - run with --init-config to create)");
+                }
             }
-            InitConfigOutcome::AlreadyExists(path) => {
-                println!("Config already exists at {}", path.display());
+            Err(e) => eprintln!("Error determining config path: {}", e),
+        }
+        return Ok(());
+    }
+
+    if cli.print_config {
+        let config = config::Config::load()?;
+        let serialized = toml::to_string_pretty(&config)?;
+        println!("{}", serialized);
+        return Ok(());
+    }
+
+    if cli.init_config {
+        match config::Config::save_default()? {
+            path => {
+                println!("Created default config at {}", path.display());
+                println!("\nYou can also create theme config with:");
+                println!("  guts --init-config  (legacy theme.toml)");
             }
         }
         return Ok(());
@@ -121,7 +177,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let source = cli.source.as_deref().ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
-            "SOURCE is required unless --init-config",
+            "SOURCE is required unless using --init-config, --config-path, or --print-config",
         )
     })?;
 
@@ -131,7 +187,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let has_one_shot_operation = cli.sql_file.is_some()
         || cli.import_file.is_some()
         || cli.backup_to.is_some()
-        || cli.restore_from.is_some();
+        || cli.restore_from.is_some()
+        || cli.export.is_some();
 
     if let Some(backup_path) = &cli.backup_to {
         ensure_sqlite_source(source_kind, "--backup-to")?;
@@ -160,6 +217,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(sql_file) = &cli.sql_file {
         let message = data::execute_sql_file(source, source_kind, sql_file)
             .map_err(|e| format!("SQL file execution failed: {e}"))?;
+        println!("{message}");
+    }
+
+    if let Some(export_path) = &cli.export {
+        // Load dataset
+        let dataset = DataSet::from_source(source, cli.query.as_deref())
+            .map_err(|e| format!("Failed to load data for export: {e}"))?;
+
+        // Determine format from extension
+        let format = export_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .and_then(export::ExportFormat::from_extension)
+            .ok_or_else(|| {
+                "Unsupported export format. Use .csv, .json, or .sql extension".to_string()
+            })?;
+
+        // Apply schema flag for SQL exports
+        let format = match format {
+            export::ExportFormat::SqlDump { batch_size, .. } => export::ExportFormat::SqlDump {
+                include_schema: cli.export_with_schema,
+                batch_size,
+            },
+            other => other,
+        };
+
+        let message = export::export_dataset(&dataset, export_path, format)
+            .map_err(|e| format!("Export failed: {e}"))?;
         println!("{message}");
     }
 
@@ -222,6 +307,10 @@ fn handle_key(app: &mut App, key: KeyEvent) -> AppResult<bool> {
             Ok(false)
         }
         InputMode::Query => handle_query_mode(app, key),
+        InputMode::FuzzySearch => {
+            handle_fuzzy_search_mode(app, key);
+            Ok(false)
+        }
     }
 }
 
@@ -243,6 +332,16 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) -> AppResult<bool> {
         KeyCode::Char(':') => {
             app.mode = InputMode::Query;
             app.set_status("Query mode");
+        }
+        KeyCode::Char('f')
+            if key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            app.mode = InputMode::FuzzySearch;
+            app.fuzzy_input.clear();
+            app.refresh_fuzzy_matches();
+            app.set_status("Fuzzy search mode");
         }
         KeyCode::Char('n') => app.search_next(),
         KeyCode::Char('N') => app.search_prev(),
@@ -275,11 +374,58 @@ fn handle_search_mode(app: &mut App, key: KeyEvent) {
     }
 }
 
+fn handle_fuzzy_search_mode(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Esc => {
+            app.mode = InputMode::Normal;
+            app.set_status("Fuzzy search cancelled");
+        }
+        KeyCode::Enter => {
+            app.fuzzy_select_column();
+            app.mode = InputMode::Normal;
+        }
+        KeyCode::Backspace => {
+            app.fuzzy_input.pop();
+            app.refresh_fuzzy_matches();
+        }
+        KeyCode::Char(ch)
+            if !key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            app.fuzzy_input.push(ch);
+            app.refresh_fuzzy_matches();
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            app.fuzzy_move_down();
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            app.fuzzy_move_up();
+        }
+        _ => {}
+    }
+}
+
 fn handle_query_mode(app: &mut App, key: KeyEvent) -> AppResult<bool> {
     match key.code {
         KeyCode::Esc => {
             app.mode = InputMode::Normal;
+            app.query_history.reset_navigation();
             app.set_status("Query cancelled");
+        }
+        KeyCode::Char('p')
+            if key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            app.history_prev();
+        }
+        KeyCode::Char('n')
+            if key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            app.history_next();
         }
         KeyCode::Enter => {
             let query = app.query_input.trim().to_string();
@@ -288,6 +434,8 @@ fn handle_query_mode(app: &mut App, key: KeyEvent) -> AppResult<bool> {
                 app.mode = InputMode::Normal;
                 return Ok(false);
             }
+
+            let mut success = true;
 
             if matches!(
                 app.source_kind,
@@ -303,6 +451,7 @@ fn handle_query_mode(app: &mut App, key: KeyEvent) -> AppResult<bool> {
                         }
                         Err(err) => {
                             app.set_status(format!("SQL file error: {err}"));
+                            success = false;
                         }
                     }
                 } else {
@@ -316,19 +465,38 @@ fn handle_query_mode(app: &mut App, key: KeyEvent) -> AppResult<bool> {
                         }
                         Err(err) => {
                             app.set_status(format!("Query error: {err}"));
+                            success = false;
                         }
                     }
                 }
             } else {
                 app.apply_filter_query();
             }
+
+            // Add to history if it's a database query
+            if matches!(
+                app.source_kind,
+                data::SourceKind::Sqlite
+                    | data::SourceKind::Postgres
+                    | data::SourceKind::MySql
+                    | data::SourceKind::Mongo
+            ) {
+                app.add_to_history(query, success);
+            }
+
             app.mode = InputMode::Normal;
         }
         KeyCode::Backspace => {
             app.query_input.pop();
+            app.query_history.reset_navigation();
         }
-        KeyCode::Char(ch) => {
+        KeyCode::Char(ch)
+            if !key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
             app.query_input.push(ch);
+            app.query_history.reset_navigation();
         }
         _ => {}
     }
