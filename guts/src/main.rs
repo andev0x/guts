@@ -356,6 +356,10 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) -> AppResult<bool> {
         app.perform_open_action();
     } else if Keymap::is_match(&app.keymap.copy, key) {
         app.perform_copy_action();
+    } else if Keymap::is_match(&app.keymap.export_csv, key) {
+        app.export_current_view_csv();
+    } else if Keymap::is_match(&app.keymap.toggle_preview, key) {
+        app.toggle_preview_expanded();
     }
     Ok(false)
 }

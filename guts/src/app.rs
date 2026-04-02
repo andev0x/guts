@@ -1,11 +1,14 @@
 use crate::action::Action;
 use crate::data::{DataSet, SourceKind};
 use crate::detect::{CellKind, detect_kind};
+use crate::export::{self, ExportFormat};
 use crate::fuzzy::{FuzzyMatch, fuzzy_search};
 use crate::history::QueryHistory;
 use crate::keybinding::Keymap;
 use crate::theme::ActiveTheme;
 use std::cmp::{max, min};
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputMode {
@@ -73,6 +76,31 @@ impl ActionFeedback {
 
 const MAX_FUZZY_ROW_ITEMS: usize = 2000;
 const MAX_FUZZY_HISTORY_ITEMS: usize = 500;
+const OPEN_MARKER_TICKS: u8 = 24;
+const EXPORT_MARKER_TICKS: u8 = 24;
+
+#[derive(Debug, Clone)]
+pub struct ColumnFilter {
+    pub col_idx: usize,
+    pub col_name: String,
+    pub needle: String,
+}
+
+#[derive(Debug, Clone)]
+struct OpenMarker {
+    data_row_idx: usize,
+    col_idx: usize,
+    success: bool,
+    target: String,
+    ticks_left: u8,
+}
+
+#[derive(Debug, Clone)]
+struct ExportMarker {
+    path: String,
+    rows: usize,
+    ticks_left: u8,
+}
 
 pub struct App {
     pub headers: Vec<String>,
@@ -92,6 +120,9 @@ pub struct App {
     pub fuzzy_selected_idx: usize,
     pub query_history: QueryHistory,
     pub filter_active: bool,
+    pub text_filter: String,
+    pub column_filters: Vec<ColumnFilter>,
+    pub preview_expanded: bool,
     pub feedback: Option<ActionFeedback>,
     pub status: String,
     pub mode: InputMode,
@@ -100,6 +131,8 @@ pub struct App {
     pub source_locator: String,
     pub source_kind: SourceKind,
     pub theme: ActiveTheme,
+    open_marker: Option<OpenMarker>,
+    export_marker: Option<ExportMarker>,
 }
 
 impl App {
@@ -131,6 +164,9 @@ impl App {
             fuzzy_selected_idx: 0,
             query_history,
             filter_active: false,
+            text_filter: String::new(),
+            column_filters: Vec::new(),
+            preview_expanded: false,
             feedback: None,
             status: theme.initial_status(),
             mode: InputMode::Normal,
@@ -139,6 +175,8 @@ impl App {
             source_locator: dataset.source_locator,
             source_kind: dataset.kind,
             theme,
+            open_marker: None,
+            export_marker: None,
         }
     }
 
@@ -157,6 +195,10 @@ impl App {
         self.source_locator = dataset.source_locator;
         self.source_kind = dataset.kind;
         self.filter_active = false;
+        self.text_filter.clear();
+        self.column_filters.clear();
+        self.preview_expanded = false;
+        self.open_marker = None;
         self.refresh_search_matches();
     }
 
@@ -185,6 +227,10 @@ impl App {
     pub fn row_at_view(&self, view_idx: usize) -> Option<&Vec<String>> {
         let data_idx = *self.view_rows.get(view_idx)?;
         self.base_rows.get(data_idx)
+    }
+
+    pub fn selected_row(&self) -> Option<&Vec<String>> {
+        self.row_at_view(self.selected_view_row)
     }
 
     pub fn visible_range(&self, height: usize) -> (usize, usize) {
@@ -269,6 +315,24 @@ impl App {
                 self.feedback = None;
             }
         }
+
+        if let Some(marker) = &mut self.open_marker {
+            if marker.ticks_left > 0 {
+                marker.ticks_left -= 1;
+            }
+            if marker.ticks_left == 0 {
+                self.open_marker = None;
+            }
+        }
+
+        if let Some(marker) = &mut self.export_marker {
+            if marker.ticks_left > 0 {
+                marker.ticks_left -= 1;
+            }
+            if marker.ticks_left == 0 {
+                self.export_marker = None;
+            }
+        }
     }
 
     pub fn set_feedback<S: Into<String>>(&mut self, text: S, kind: FeedbackKind) {
@@ -276,38 +340,255 @@ impl App {
     }
 
     pub fn apply_filter_query(&mut self) {
-        let q = self.query_input.trim().to_ascii_lowercase();
-        if q.is_empty() {
-            self.view_rows = (0..self.base_rows.len()).collect();
-            self.selected_view_row = 0;
-            self.scroll = 0;
-            self.filter_active = false;
-            self.set_status("Query cleared");
-            self.set_feedback("Filter cleared", FeedbackKind::Info);
-            self.refresh_search_matches();
+        let query = self.query_input.trim().to_string();
+        if query.is_empty() {
+            self.clear_filters();
+            self.set_status("Filters cleared");
+            self.set_feedback("Text and column filters cleared", FeedbackKind::Info);
             return;
         }
 
+        if query.eq_ignore_ascii_case("clear") || query.eq_ignore_ascii_case("clear filters") {
+            self.clear_filters();
+            self.set_status("Filters cleared");
+            self.set_feedback("Text and column filters cleared", FeedbackKind::Info);
+            return;
+        }
+
+        if let Some(rest) = query.strip_prefix("clear ") {
+            let column = rest.trim();
+            let before = self.column_filters.len();
+            self.column_filters
+                .retain(|item| !item.col_name.eq_ignore_ascii_case(column));
+            self.rebuild_view_rows();
+            if self.column_filters.len() < before {
+                self.set_status(format!("Removed column filter: {column}"));
+                self.set_feedback("Column filter removed", FeedbackKind::Info);
+            } else {
+                self.set_status(format!("No filter for column: {column}"));
+                self.set_feedback("Column filter not found", FeedbackKind::Warn);
+            }
+            return;
+        }
+
+        if let Some((col_idx, col_name, needle)) = parse_column_filter(&query, &self.headers) {
+            self.apply_column_filter(col_idx, col_name.clone(), needle.clone());
+            self.set_status(format!(
+                "Column filter {col_name} contains '{needle}' ({})",
+                self.view_rows.len()
+            ));
+            self.set_feedback("Column filter applied", FeedbackKind::Success);
+            return;
+        }
+
+        self.text_filter = query.to_ascii_lowercase();
+        self.rebuild_view_rows();
+        self.set_status(format!("Text filter matched {} rows", self.view_rows.len()));
+        self.set_feedback(
+            format!("Text filter active: '{}'", ellipsize_for_status(&query, 42)),
+            FeedbackKind::Success,
+        );
+    }
+
+    pub fn toggle_preview_expanded(&mut self) {
+        self.preview_expanded = !self.preview_expanded;
+        if self.preview_expanded {
+            self.set_status("Preview expanded");
+        } else {
+            self.set_status("Preview collapsed");
+        }
+    }
+
+    pub fn preview_max_chars(&self) -> usize {
+        if self.preview_expanded { 1200 } else { 140 }
+    }
+
+    pub fn workflow_step(&self) -> &'static str {
+        if self.export_marker.is_some() {
+            "export"
+        } else if self.open_marker.is_some() {
+            "open"
+        } else if self.filter_active {
+            "filter"
+        } else if !self.search_input.trim().is_empty() {
+            "search"
+        } else {
+            "view"
+        }
+    }
+
+    pub fn filter_summary(&self) -> String {
+        let mut parts = Vec::new();
+        if !self.text_filter.is_empty() {
+            parts.push(format!(
+                "text:{}",
+                ellipsize_for_status(&self.text_filter, 24)
+            ));
+        }
+        for col in &self.column_filters {
+            parts.push(format!(
+                "{}:{}",
+                col.col_name,
+                ellipsize_for_status(&col.needle, 18)
+            ));
+        }
+
+        if parts.is_empty() {
+            "none".to_string()
+        } else {
+            parts.join(" | ")
+        }
+    }
+
+    pub fn column_filter_for(&self, col_idx: usize) -> Option<&str> {
+        self.column_filters
+            .iter()
+            .find(|item| item.col_idx == col_idx)
+            .map(|item| item.needle.as_str())
+    }
+
+    pub fn open_marker_for_view_cell(
+        &self,
+        view_idx: usize,
+        col_idx: usize,
+    ) -> Option<(bool, &str)> {
+        let marker = self.open_marker.as_ref()?;
+        let data_idx = *self.view_rows.get(view_idx)?;
+        if marker.data_row_idx == data_idx && marker.col_idx == col_idx {
+            return Some((marker.success, marker.target.as_str()));
+        }
+        None
+    }
+
+    pub fn open_marker_summary(&self) -> Option<String> {
+        self.open_marker.as_ref().map(|marker| {
+            let state = if marker.success { "ok" } else { "error" };
+            format!("{state}: {}", ellipsize_for_status(&marker.target, 72))
+        })
+    }
+
+    pub fn export_marker_summary(&self) -> Option<String> {
+        self.export_marker.as_ref().map(|marker| {
+            format!(
+                "{} rows -> {}",
+                marker.rows,
+                ellipsize_for_status(&marker.path, 72)
+            )
+        })
+    }
+
+    pub fn is_cell_openable(&self, view_idx: usize, col_idx: usize) -> bool {
+        let Some(row) = self.row_at_view(view_idx) else {
+            return false;
+        };
+        let Some(cell) = row.get(col_idx) else {
+            return false;
+        };
+        matches!(detect_kind(cell), CellKind::Url | CellKind::Email)
+    }
+
+    pub fn export_current_view_csv(&mut self) {
+        let file_name = format!("guts-export-{}.csv", unix_timestamp_secs());
+        let path = PathBuf::from(file_name);
+
+        let rows = self
+            .view_rows
+            .iter()
+            .filter_map(|idx| self.base_rows.get(*idx).cloned())
+            .collect::<Vec<_>>();
+
+        let dataset = DataSet {
+            headers: self.headers.clone(),
+            rows,
+            source: self.source_label.clone(),
+            source_locator: self.source_locator.clone(),
+            kind: self.source_kind,
+        };
+
+        let row_count = dataset.rows.len();
+        let result = export::export_dataset(
+            &dataset,
+            &path,
+            ExportFormat::Csv {
+                delimiter: ',',
+                include_headers: true,
+            },
+        );
+
+        match result {
+            Ok(msg) => {
+                self.export_marker = Some(ExportMarker {
+                    path: path.display().to_string(),
+                    rows: row_count,
+                    ticks_left: EXPORT_MARKER_TICKS,
+                });
+                self.set_status(msg);
+                self.set_feedback("CSV export completed", FeedbackKind::Success);
+            }
+            Err(err) => {
+                self.export_marker = None;
+                self.set_status(format!("CSV export failed: {err}"));
+                self.set_feedback("CSV export failed", FeedbackKind::Error);
+            }
+        }
+    }
+
+    fn clear_filters(&mut self) {
+        self.text_filter.clear();
+        self.column_filters.clear();
+        self.rebuild_view_rows();
+    }
+
+    fn apply_column_filter(&mut self, col_idx: usize, col_name: String, needle: String) {
+        let needle = needle.to_ascii_lowercase();
+        if let Some(existing) = self
+            .column_filters
+            .iter_mut()
+            .find(|item| item.col_idx == col_idx)
+        {
+            existing.needle = needle;
+            existing.col_name = col_name;
+        } else {
+            self.column_filters.push(ColumnFilter {
+                col_idx,
+                col_name,
+                needle,
+            });
+        }
+
+        self.rebuild_view_rows();
+    }
+
+    fn rebuild_view_rows(&mut self) {
         self.view_rows = self
             .base_rows
             .iter()
             .enumerate()
-            .filter(|(_, row)| {
-                row.iter()
-                    .any(|cell| cell.to_ascii_lowercase().contains(&q))
-            })
+            .filter(|(_, row)| self.row_matches_filters(row))
             .map(|(idx, _)| idx)
             .collect();
 
         self.selected_view_row = 0;
         self.scroll = 0;
-        self.filter_active = true;
-        self.set_status(format!("Query matched {} rows", self.view_rows.len()));
-        self.set_feedback(
-            format!("Filter matched {} rows", self.view_rows.len()),
-            FeedbackKind::Success,
-        );
+        self.filter_active = !self.text_filter.is_empty() || !self.column_filters.is_empty();
         self.refresh_search_matches();
+    }
+
+    fn row_matches_filters(&self, row: &[String]) -> bool {
+        let text_ok = if self.text_filter.is_empty() {
+            true
+        } else {
+            row.iter()
+                .any(|cell| cell.to_ascii_lowercase().contains(&self.text_filter))
+        };
+
+        let columns_ok = self.column_filters.iter().all(|filter| {
+            row.get(filter.col_idx)
+                .map(|cell| cell.to_ascii_lowercase().contains(&filter.needle))
+                .unwrap_or(false)
+        });
+
+        text_ok && columns_ok
     }
 
     pub fn refresh_search_matches(&mut self) {
@@ -390,18 +671,39 @@ impl App {
     }
 
     pub fn perform_open_action(&mut self) {
-        match self.selected_cell().map(ToOwned::to_owned) {
-            Some(cell) => match Action::open(&cell) {
+        let selected_row = self.selected_data_row_index();
+        let selected_col = self.selected_col;
+
+        match (selected_row, self.selected_cell().map(ToOwned::to_owned)) {
+            (Some(data_row_idx), Some(cell)) => match Action::open(&cell) {
                 Ok(()) => {
+                    self.open_marker = Some(OpenMarker {
+                        data_row_idx,
+                        col_idx: selected_col,
+                        success: true,
+                        target: cell.clone(),
+                        ticks_left: OPEN_MARKER_TICKS,
+                    });
                     self.set_status("Opened selected value");
-                    self.set_feedback("Open action succeeded", FeedbackKind::Success);
+                    self.set_feedback(
+                        format!("Opened {}", ellipsize_for_status(&cell, 72)),
+                        FeedbackKind::Success,
+                    );
                 }
                 Err(err) => {
+                    self.open_marker = Some(OpenMarker {
+                        data_row_idx,
+                        col_idx: selected_col,
+                        success: false,
+                        target: cell,
+                        ticks_left: OPEN_MARKER_TICKS,
+                    });
                     self.set_status(format!("Open failed: {err}"));
                     self.set_feedback("Open action failed", FeedbackKind::Error);
                 }
             },
-            None => {
+            _ => {
+                self.open_marker = None;
                 self.set_status("No cell selected");
                 self.set_feedback("Open skipped: no selected cell", FeedbackKind::Warn);
             }
@@ -646,4 +948,44 @@ fn row_fuzzy_label(row: &[String]) -> String {
 fn fallback_headers(rows: &[Vec<String>]) -> Vec<String> {
     let cols = rows.first().map(|r| r.len()).unwrap_or(1);
     (1..=cols).map(|i| format!("col_{i}")).collect()
+}
+
+fn parse_column_filter(query: &str, headers: &[String]) -> Option<(usize, String, String)> {
+    let (lhs, rhs) = query.split_once('=')?;
+    let column = lhs.trim();
+    let needle = rhs.trim();
+    if column.is_empty() || needle.is_empty() {
+        return None;
+    }
+
+    let (idx, name) = headers
+        .iter()
+        .enumerate()
+        .find(|(_, header)| header.eq_ignore_ascii_case(column))
+        .map(|(idx, header)| (idx, header.clone()))?;
+
+    Some((idx, name, needle.to_string()))
+}
+
+fn ellipsize_for_status(value: &str, max_len: usize) -> String {
+    if value.chars().count() <= max_len {
+        return value.to_string();
+    }
+
+    let mut out = String::with_capacity(max_len + 1);
+    for (idx, ch) in value.chars().enumerate() {
+        if idx >= max_len.saturating_sub(1) {
+            break;
+        }
+        out.push(ch);
+    }
+    out.push('~');
+    out
+}
+
+fn unix_timestamp_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
