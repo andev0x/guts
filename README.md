@@ -26,13 +26,18 @@ It is designed for speed and clarity when exploring CSV, JSON, and SQLite data d
 ## Features
 
 - Fast loading for CSV, JSON, and SQLite (`.db`, `.sqlite`)
+- Database URI sources: PostgreSQL (`postgres://`), MySQL (`mysql://`), MongoDB (`mongodb://`)
 - Table rendering with sticky header and row selection
 - Vim-style navigation (`h/j/k/l`, `g`, `G`, page up/down)
 - Virtual scrolling for large datasets
 - Incremental search (`/`, `n`, `N`)
 - Query/filter mode (`:`)
   - CSV/JSON: text filter across all columns
-  - SQLite: execute SQL queries
+  - SQLite/PostgreSQL/MySQL: execute SQL queries and non-SELECT statements
+  - MongoDB: quick collection query (`collection_name [limit]`)
+- Execute SQL files directly (`--sql-file` or query-mode `.read <file.sql>` / `\i <file.sql>`)
+- Import CSV/JSON into SQLite tables (`--import-file`, `--import-table`)
+- SQLite backup and restore (`--backup-to`, `--restore-from`)
 - Smart cell detection (URL, email, IP, number)
 - Open action for links/emails (`o`)
 - Copy selected cell to clipboard (`y`)
@@ -50,10 +55,16 @@ Build locally:
 ```bash
 cd guts
 cargo build --release
+```
 
+Use 'guts' command
+
+```bash
 cargo install --path .
 
+guts --help
 ```
+
 
 Prebuilt binaries:
 
@@ -63,8 +74,10 @@ Prebuilt binaries:
 
 ```bash
 cd guts
-cargo run -- <path/to/data.csv>
+cargo run -- <source>
 ```
+
+`<source>` can be either a file path (`.csv`, `.json`, `.db`, `.sqlite`) or database URI (`postgres://`, `mysql://`, `mongodb://`).
 
 Initialize default theme config:
 
@@ -75,7 +88,7 @@ guts --init-config
 - Your installed binary help still shows Usage: guts [OPTIONS] <SOURCE> and has no --init-config.
 - The current local source does include it (local run shows Usage: guts [OPTIONS] [SOURCE] and --init-config).
 Use one of these:
-# from path
+## from path
 ```bash
 cargo install --path . --force
 or run directly without installing:
@@ -99,6 +112,19 @@ cargo run -- ./examples/app.db
 
 # SQLite custom SQL query
 cargo run -- ./examples/app.db --query "SELECT id, email FROM users LIMIT 100"
+
+# Execute SQL file against SQLite
+cargo run -- ./examples/app.db --sql-file ./migrations/init.sql
+
+# PostgreSQL URI source
+cargo run -- "postgres://postgres:postgres@localhost:5432/app"
+
+# Import CSV into SQLite table
+cargo run -- ./examples/app.db --import-file ./examples/users.csv --import-table users
+
+# Backup / restore SQLite
+cargo run -- ./examples/app.db --backup-to ./backups/app-2026-04-02.db
+cargo run -- ./examples/app.db --restore-from ./backups/app-2026-04-02.db
 ```
 
 ## Themes
@@ -179,4 +205,3 @@ MIT. See [LICENSE](License).
 <a href="https://github.com/andev0x/guts/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=andev0x/guts" />
 </a>
-

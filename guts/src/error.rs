@@ -16,6 +16,15 @@ pub enum AppError {
     #[error("SQLite error: {0}")]
     Sql(#[from] rusqlite::Error),
 
+    #[error("PostgreSQL error: {0}")]
+    Postgres(#[from] postgres::Error),
+
+    #[error("MySQL error: {0}")]
+    MySql(#[from] mysql::Error),
+
+    #[error("MongoDB error: {0}")]
+    Mongo(#[from] mongodb::error::Error),
+
     #[error("Open action failed: {0}")]
     Open(#[from] opener::OpenError),
 
@@ -27,4 +36,10 @@ pub enum AppError {
 
     #[error("Action failed: {0}")]
     Action(String),
+
+    #[error("Database configuration error: {0}")]
+    DbConfig(String),
+
+    #[error("Database operation error: {0}")]
+    DbOperation(String),
 }
