@@ -4,7 +4,7 @@ use std::io;
 use std::path::PathBuf;
 
 use ratatui::style::Color;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Palette {
@@ -35,11 +35,13 @@ pub struct ActiveTheme {
     fallback_reason: Option<String>,
 }
 
+#[allow(dead_code)]
 pub enum InitConfigOutcome {
     Created(PathBuf),
     AlreadyExists(PathBuf),
 }
 
+#[allow(dead_code)]
 pub const DEFAULT_THEME_TOML: &str = r##"preset = "nord"
 
 [colors]
@@ -75,34 +77,34 @@ impl ActiveTheme {
     }
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone)]
 #[serde(default)]
-struct ThemeConfig {
-    preset: Option<String>,
-    colors: ThemeOverrides,
+pub struct ThemeConfig {
+    pub preset: Option<String>,
+    pub colors: ThemeOverrides,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone)]
 #[serde(default)]
-struct ThemeOverrides {
-    background: Option<String>,
-    border: Option<String>,
-    header_background: Option<String>,
-    header_foreground: Option<String>,
-    row_foreground: Option<String>,
-    selected_background: Option<String>,
-    selected_foreground: Option<String>,
-    match_background: Option<String>,
-    status_mode_foreground: Option<String>,
-    status_mode_background: Option<String>,
-    status_text_foreground: Option<String>,
-    metrics_foreground: Option<String>,
-    column_foreground: Option<String>,
-    type_foreground: Option<String>,
-    source_foreground: Option<String>,
-    help_foreground: Option<String>,
-    input_prompt_foreground: Option<String>,
-    input_text_foreground: Option<String>,
+pub struct ThemeOverrides {
+    pub background: Option<String>,
+    pub border: Option<String>,
+    pub header_background: Option<String>,
+    pub header_foreground: Option<String>,
+    pub row_foreground: Option<String>,
+    pub selected_background: Option<String>,
+    pub selected_foreground: Option<String>,
+    pub match_background: Option<String>,
+    pub status_mode_foreground: Option<String>,
+    pub status_mode_background: Option<String>,
+    pub status_text_foreground: Option<String>,
+    pub metrics_foreground: Option<String>,
+    pub column_foreground: Option<String>,
+    pub type_foreground: Option<String>,
+    pub source_foreground: Option<String>,
+    pub help_foreground: Option<String>,
+    pub input_prompt_foreground: Option<String>,
+    pub input_text_foreground: Option<String>,
 }
 
 pub fn load_active_theme() -> ActiveTheme {
@@ -138,6 +140,7 @@ pub fn load_active_theme() -> ActiveTheme {
     ActiveTheme::configured(name, palette)
 }
 
+#[allow(dead_code)]
 pub fn init_default_config() -> io::Result<InitConfigOutcome> {
     let path = default_user_theme_path()?;
 
@@ -153,6 +156,7 @@ pub fn init_default_config() -> io::Result<InitConfigOutcome> {
     Ok(InitConfigOutcome::Created(path))
 }
 
+#[allow(dead_code)]
 fn default_user_theme_path() -> io::Result<PathBuf> {
     let home =
         env::var("HOME").map_err(|_| io::Error::new(io::ErrorKind::NotFound, "HOME is not set"))?;

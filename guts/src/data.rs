@@ -5,6 +5,7 @@ use mongodb::bson::{Bson, Document};
 use mongodb::sync::Client as MongoClient;
 use mysql::prelude::Queryable;
 use postgres::{Client as PostgresClient, NoTls, SimpleQueryMessage};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::error::{AppError, AppResult};
@@ -14,7 +15,7 @@ const SQLITE_TABLE_LIST_SQL: &str =
 const POSTGRES_TABLE_LIST_SQL: &str = "SELECT table_schema, table_name FROM information_schema.tables WHERE table_type='BASE TABLE' AND table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_schema, table_name LIMIT 500";
 const MYSQL_TABLE_LIST_SQL: &str = "SELECT table_schema, table_name FROM information_schema.tables WHERE table_type='BASE TABLE' ORDER BY table_schema, table_name LIMIT 500";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SourceKind {
     Csv,
     Json,
@@ -90,7 +91,10 @@ pub fn execute_query(
     kind: SourceKind,
     query: &str,
 ) -> AppResult<QueryExecution> {
-    match kind {
+    tracing::info!("Executing query: kind={:?}, query={}", kind, query);
+    let start = std::time::Instant::now();
+
+    let result = match kind {
         SourceKind::Sqlite => execute_sqlite_query(Path::new(source_locator), query),
         SourceKind::Postgres => execute_postgres_query(source_locator, query),
         SourceKind::MySql => execute_mysql_query(source_locator, query),
@@ -98,7 +102,26 @@ pub fn execute_query(
         SourceKind::Csv | SourceKind::Json => Err(AppError::DbOperation(
             "Ad-hoc query execution is only available for database sources".to_string(),
         )),
+    };
+
+    let duration_ms = start.elapsed().as_millis();
+    match &result {
+        Ok(QueryExecution::Data(dataset, _)) => {
+            tracing::info!(
+                "Query completed: {} rows, {} ms",
+                dataset.rows.len(),
+                duration_ms
+            );
+        }
+        Ok(QueryExecution::Message(msg)) => {
+            tracing::info!("Query completed: {} ms, message={}", duration_ms, msg);
+        }
+        Err(e) => {
+            tracing::error!("Query failed: {} ms, error={}", duration_ms, e);
+        }
     }
+
+    result
 }
 
 pub fn execute_sql_file(
