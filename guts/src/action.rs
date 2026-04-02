@@ -1,6 +1,6 @@
 use arboard::Clipboard;
 
-use crate::detect::{detect_kind, CellKind};
+use crate::detect::{CellKind, detect_kind};
 use crate::error::{AppError, AppResult};
 
 pub struct Action;
