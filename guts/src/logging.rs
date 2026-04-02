@@ -50,9 +50,9 @@ pub fn init_logging(config: &LogConfig) -> AppResult<()> {
 }
 
 fn expand_path(path: &str) -> AppResult<PathBuf> {
-    if path.starts_with("~/") {
+    if let Some(stripped) = path.strip_prefix("~/") {
         if let Ok(home) = std::env::var("HOME") {
-            return Ok(PathBuf::from(home).join(&path[2..]));
+            return Ok(PathBuf::from(home).join(stripped));
         }
     }
     Ok(PathBuf::from(path))

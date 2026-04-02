@@ -75,10 +75,13 @@ impl QueryHistory {
 
     pub fn add(&mut self, entry: QueryEntry) {
         // Don't add duplicate consecutive entries
-        if let Some(last) = self.entries.last() {
-            if last.query == entry.query {
-                return;
-            }
+        if self
+            .entries
+            .last()
+            .map(|last| last.query == entry.query)
+            .unwrap_or(false)
+        {
+            return;
         }
 
         self.entries.push(entry);

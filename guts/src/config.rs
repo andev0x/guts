@@ -6,7 +6,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     #[serde(default)]
     pub general: GeneralConfig,
@@ -183,20 +183,6 @@ impl Default for LogConfig {
     }
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            general: GeneralConfig::default(),
-            database: DatabaseConfig::default(),
-            import: ImportConfig::default(),
-            export: ExportConfig::default(),
-            logging: LogConfig::default(),
-            theme: ThemeConfig::default(),
-            keybindings: KeybindingConfig::default(),
-        }
-    }
-}
-
 impl Config {
     /// Load configuration with the following priority:
     /// 1. Default values
@@ -224,22 +210,25 @@ impl Config {
 
     fn apply_env_overrides(&mut self) {
         // General
-        if let Ok(val) = env::var("GUTS_HISTORY_SIZE") {
-            if let Ok(size) = val.parse() {
-                self.general.max_history = size;
-            }
+        if let Some(size) = env::var("GUTS_HISTORY_SIZE")
+            .ok()
+            .and_then(|val| val.parse::<usize>().ok())
+        {
+            self.general.max_history = size;
         }
-        if let Ok(val) = env::var("GUTS_PAGE_SIZE") {
-            if let Ok(size) = val.parse() {
-                self.general.page_size = size;
-            }
+        if let Some(size) = env::var("GUTS_PAGE_SIZE")
+            .ok()
+            .and_then(|val| val.parse::<usize>().ok())
+        {
+            self.general.page_size = size;
         }
 
         // Database
-        if let Ok(val) = env::var("GUTS_DB_TIMEOUT") {
-            if let Ok(timeout) = val.parse() {
-                self.database.postgres_connect_timeout = timeout;
-            }
+        if let Some(timeout) = env::var("GUTS_DB_TIMEOUT")
+            .ok()
+            .and_then(|val| val.parse::<u64>().ok())
+        {
+            self.database.postgres_connect_timeout = timeout;
         }
 
         // Logging

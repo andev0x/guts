@@ -166,12 +166,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if cli.init_config {
-        match config::Config::save_default()? {
-            path => {
-                println!("Created default config at {}", path.display());
-                println!("\nYou can also create theme config with:");
-                println!("  guts --init-config  (legacy theme.toml)");
-            }
+        let path = config::Config::save_default()?;
+        {
+            println!("Created default config at {}", path.display());
+            println!("\nYou can also create theme config with:");
+            println!("  guts --init-config  (legacy theme.toml)");
         }
         return Ok(());
     }

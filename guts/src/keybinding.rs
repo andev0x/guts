@@ -1,7 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct KeybindingConfig {
     pub navigation: NavigationKeybindingConfig,
@@ -44,16 +44,6 @@ pub struct ActionKeybindingConfig {
     pub confirm: Vec<String>,
     pub cancel: Vec<String>,
     pub backspace: Vec<String>,
-}
-
-impl Default for KeybindingConfig {
-    fn default() -> Self {
-        Self {
-            navigation: NavigationKeybindingConfig::default(),
-            search: SearchKeybindingConfig::default(),
-            actions: ActionKeybindingConfig::default(),
-        }
-    }
 }
 
 impl Default for NavigationKeybindingConfig {
