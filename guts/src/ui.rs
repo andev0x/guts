@@ -22,15 +22,27 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(1),
-            Constraint::Min(4),
-            Constraint::Length(2),
+            Constraint::Min(8),
+            Constraint::Length(4),
             Constraint::Length(3),
         ])
         .margin(1)
         .split(size);
 
     render_header(frame, chunks[0], app);
-    render_table(frame, chunks[1], app);
+    let content_chunks = if chunks[1].width >= 120 {
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(68), Constraint::Percentage(32)])
+            .split(chunks[1])
+    } else {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(64), Constraint::Percentage(36)])
+            .split(chunks[1])
+    };
+    render_table(frame, content_chunks[0], app);
+    render_preview(frame, content_chunks[1], app);
     render_status(frame, chunks[2], app);
     render_help(frame, chunks[3], app);
 
@@ -60,6 +72,12 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         )
     };
 
+    let selected_col_name = app
+        .headers
+        .get(app.selected_col)
+        .map(String::as_str)
+        .unwrap_or("-");
+
     let line = Line::from(vec![
         Span::styled(
             " guts ",
@@ -72,7 +90,12 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         Span::styled(row_label, Style::default().fg(palette.metrics_foreground)),
         Span::raw("  "),
         Span::styled(
-            format!("col {}/{}", app.selected_col + 1, app.total_cols()),
+            format!(
+                "col {}/{} {}",
+                app.selected_col + 1,
+                app.total_cols(),
+                ellipsize(selected_col_name, 20)
+            ),
             Style::default().fg(palette.column_foreground),
         ),
         Span::raw("  "),
@@ -96,8 +119,14 @@ fn render_table(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let column_count = app.total_cols();
     let widths = column_widths(column_count);
+    let approx_cell_max = ((area.width as usize).saturating_sub(8) / column_count.max(1)).max(8);
 
     let header = Row::new(app.headers.iter().enumerate().map(|(idx, h)| {
+        let header_label = if let Some(filter) = app.column_filter_for(idx) {
+            format!("{} [{}]", h, ellipsize(filter, 12))
+        } else {
+            h.clone()
+        };
         let is_selected_col = idx == app.selected_col;
         let mut base_style = Style::default()
             .fg(palette.header_foreground)
@@ -107,6 +136,10 @@ fn render_table(frame: &mut Frame, area: Rect, app: &mut App) {
             base_style = base_style
                 .bg(palette.selected_background)
                 .fg(palette.selected_foreground);
+        } else if app.column_filter_for(idx).is_some() {
+            base_style = base_style
+                .bg(palette.match_background)
+                .fg(palette.input_prompt_foreground);
         } else if app.mode == InputMode::FuzzySearch
             && app.fuzzy_target == FuzzyTarget::Columns
             && fuzzy_match_for_column(app, idx).is_some()
@@ -116,7 +149,7 @@ fn render_table(frame: &mut Frame, area: Rect, app: &mut App) {
 
         if let Some(fuzzy_match) = fuzzy_match_for_column(app, idx) {
             Cell::from(highlight_line(
-                h,
+                &header_label,
                 &fuzzy_match.matched_indices,
                 base_style,
                 base_style
@@ -124,7 +157,7 @@ fn render_table(frame: &mut Frame, area: Rect, app: &mut App) {
                     .add_modifier(Modifier::UNDERLINED),
             ))
         } else {
-            Cell::from(h.as_str()).style(base_style)
+            Cell::from(header_label).style(base_style)
         }
     }))
     .style(Style::default().bg(palette.header_background));
@@ -156,6 +189,7 @@ fn render_table(frame: &mut Frame, area: Rect, app: &mut App) {
                 .unwrap_or("");
             let mut cell_style = style;
             let is_selected_col = idx == app.selected_col;
+            let is_openable = app.is_cell_openable(view_idx, idx);
 
             if is_selected_col && !is_selected_row {
                 cell_style = cell_style
@@ -167,15 +201,32 @@ fn render_table(frame: &mut Frame, area: Rect, app: &mut App) {
                 cell_style = cell_style.add_modifier(Modifier::UNDERLINED);
             }
 
-            Cell::from(ellipsize(value, 120)).style(cell_style)
+            if is_openable {
+                cell_style = cell_style
+                    .fg(palette.input_prompt_foreground)
+                    .add_modifier(Modifier::UNDERLINED);
+            }
+
+            if let Some((success, _)) = app.open_marker_for_view_cell(view_idx, idx) {
+                cell_style = if success {
+                    cell_style.bg(Color::DarkGray).fg(Color::LightGreen)
+                } else {
+                    cell_style.bg(Color::DarkGray).fg(Color::LightRed)
+                };
+            }
+
+            Cell::from(ellipsize(value, approx_cell_max)).style(cell_style)
         });
         Row::new(cells)
     });
 
     let title = if app.filter_active {
-        " Data (filtered) "
+        format!(
+            " Data (filtered: {}) ",
+            ellipsize(&app.filter_summary(), 42)
+        )
     } else {
-        " Data "
+        " Data ".to_string()
     };
 
     let table = Table::new(rows, widths)
@@ -194,6 +245,102 @@ fn render_table(frame: &mut Frame, area: Rect, app: &mut App) {
         );
 
     frame.render_widget(table, area);
+}
+
+fn render_preview(frame: &mut Frame, area: Rect, app: &App) {
+    let palette = app.theme.palette;
+    let selected_col_name = app
+        .headers
+        .get(app.selected_col)
+        .map(String::as_str)
+        .unwrap_or("-");
+
+    let mut lines = vec![Line::from(vec![
+        Span::styled(
+            "Selected: ",
+            Style::default()
+                .fg(palette.metrics_foreground)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!("{}", app.selected_view_row + 1),
+            Style::default().fg(palette.status_text_foreground),
+        ),
+        Span::raw("  "),
+        Span::styled(
+            format!("{}", selected_col_name),
+            Style::default().fg(palette.column_foreground),
+        ),
+    ])];
+
+    if let Some(marker) = app.open_marker_summary() {
+        lines.push(Line::from(vec![
+            Span::styled("Open: ", Style::default().fg(palette.metrics_foreground)),
+            Span::styled(marker, Style::default().fg(palette.input_prompt_foreground)),
+        ]));
+    }
+
+    if let Some(marker) = app.export_marker_summary() {
+        lines.push(Line::from(vec![
+            Span::styled("Export: ", Style::default().fg(palette.metrics_foreground)),
+            Span::styled(marker, Style::default().fg(palette.status_mode_background)),
+        ]));
+    }
+
+    lines.push(Line::from(Span::styled(
+        if app.preview_expanded {
+            "Preview mode: expanded"
+        } else {
+            "Preview mode: compact"
+        },
+        Style::default().fg(palette.help_foreground),
+    )));
+
+    lines.push(Line::from(""));
+
+    if let Some(row) = app.selected_row() {
+        for (idx, header) in app.headers.iter().enumerate() {
+            let value = row.get(idx).map(String::as_str).unwrap_or("");
+            let value = ellipsize(value, app.preview_max_chars());
+            lines.push(Line::from(vec![
+                Span::styled(
+                    format!("{}: ", ellipsize(header, 20)),
+                    Style::default()
+                        .fg(if idx == app.selected_col {
+                            palette.selected_foreground
+                        } else {
+                            palette.column_foreground
+                        })
+                        .add_modifier(if idx == app.selected_col {
+                            Modifier::BOLD
+                        } else {
+                            Modifier::empty()
+                        }),
+                ),
+                Span::styled(value, Style::default().fg(palette.row_foreground)),
+            ]));
+        }
+    } else {
+        lines.push(Line::from(Span::styled(
+            "No row selected",
+            Style::default().fg(palette.help_foreground),
+        )));
+    }
+
+    frame.render_widget(
+        Paragraph::new(lines).wrap(Wrap { trim: false }).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .style(Style::default().fg(palette.border))
+                .title(Span::styled(
+                    " Preview ",
+                    Style::default()
+                        .fg(palette.header_foreground)
+                        .add_modifier(Modifier::BOLD),
+                )),
+        ),
+        area,
+    );
 }
 
 fn render_status(frame: &mut Frame, area: Rect, app: &App) {
@@ -218,6 +365,7 @@ fn render_status(frame: &mut Frame, area: Rect, app: &App) {
         "ready".to_string()
     };
     let filter_state = if app.filter_active { "on" } else { "off" };
+    let workflow_step = app.workflow_step();
 
     let line1 = Line::from(vec![
         state_chip(
@@ -247,12 +395,41 @@ fn render_status(frame: &mut Frame, area: Rect, app: &App) {
             palette.match_background,
             palette.status_text_foreground,
         ),
+        Span::raw(" "),
+        state_chip(
+            format!("STEP {}", workflow_step.to_ascii_uppercase()),
+            true,
+            palette.header_background,
+            palette.header_foreground,
+        ),
     ]);
 
     let mut line2 = vec![Span::styled(
         app.status.clone(),
         Style::default().fg(palette.status_text_foreground),
     )];
+
+    line2.push(Span::raw("  |  "));
+    line2.push(Span::styled(
+        format!("filters {}", ellipsize(&app.filter_summary(), 56)),
+        Style::default().fg(palette.metrics_foreground),
+    ));
+
+    if let Some(open_summary) = app.open_marker_summary() {
+        line2.push(Span::raw("  |  "));
+        line2.push(Span::styled(
+            format!("open {}", open_summary),
+            Style::default().fg(palette.input_prompt_foreground),
+        ));
+    }
+
+    if let Some(export_summary) = app.export_marker_summary() {
+        line2.push(Span::raw("  |  "));
+        line2.push(Span::styled(
+            format!("export {}", export_summary),
+            Style::default().fg(palette.status_mode_background),
+        ));
+    }
 
     if let Some(feedback) = &app.feedback {
         let color = feedback_color(
@@ -306,9 +483,11 @@ fn render_help(frame: &mut Frame, area: Rect, app: &App) {
     );
 
     let actions = format!(
-        "[Actions] open {}  copy {}  confirm {}  cancel {}  quit {}",
+        "[Actions] open {}  copy {}  export {}  preview {}  confirm {}  cancel {}  quit {}",
         Keymap::labels(&k.open),
         Keymap::labels(&k.copy),
+        Keymap::labels(&k.export_csv),
+        Keymap::labels(&k.toggle_preview),
         Keymap::labels(&k.confirm),
         Keymap::labels(&k.cancel),
         Keymap::labels(&k.quit)
@@ -353,7 +532,7 @@ fn render_prompt_overlay(frame: &mut Frame, app: &App) {
             "Query/Filter",
             app.query_input.as_str(),
             format!(
-                "{} history prev  {} history next  {}",
+                "{} history prev  {} history next  {}  text=<term> | <column>=<term> | clear [column]",
                 Keymap::labels(&app.keymap.history_prev),
                 Keymap::labels(&app.keymap.history_next),
                 crate::data::source_query_hint(app.source_kind)
