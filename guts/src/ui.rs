@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, Wrap};
+use ratatui::Frame;
 
 use crate::app::{App, FeedbackKind, FuzzyItemKind, FuzzyTarget, InputMode};
 use crate::detect::CellKind;
@@ -268,7 +268,7 @@ fn render_preview(frame: &mut Frame, area: Rect, app: &App) {
         ),
         Span::raw("  "),
         Span::styled(
-            format!("{}", selected_col_name),
+            selected_col_name.to_string(),
             Style::default().fg(palette.column_foreground),
         ),
     ])];
