@@ -41,10 +41,14 @@ pub enum QueryExecution {
 }
 
 impl DataSet {
-    pub fn from_source(source: &str, initial_query: Option<&str>) -> AppResult<Self> {
+    pub fn from_source(
+        source: &str,
+        initial_query: Option<&str>,
+        relaxed_csv: bool,
+    ) -> AppResult<Self> {
         let kind = detect_source_kind(source)?;
         match kind {
-            SourceKind::Csv => load_csv(Path::new(source)),
+            SourceKind::Csv => load_csv(Path::new(source), relaxed_csv),
             SourceKind::Json => load_json(Path::new(source)),
             SourceKind::Sqlite => load_sqlite(
                 Path::new(source),
@@ -160,7 +164,12 @@ pub fn execute_sql_file(
     }
 }
 
-pub fn import_into_sqlite(db_path: &Path, table: &str, input_path: &Path) -> AppResult<String> {
+pub fn import_into_sqlite(
+    db_path: &Path,
+    table: &str,
+    input_path: &Path,
+    relaxed_csv: bool,
+) -> AppResult<String> {
     let ext = input_path
         .extension()
         .and_then(|s| s.to_str())
@@ -168,7 +177,7 @@ pub fn import_into_sqlite(db_path: &Path, table: &str, input_path: &Path) -> App
         .to_ascii_lowercase();
 
     let (headers, rows) = match ext.as_str() {
-        "csv" => load_csv_rows(input_path)?,
+        "csv" => load_csv_rows(input_path, relaxed_csv)?,
         "json" => load_json_rows(input_path)?,
         _ => {
             return Err(AppError::DbOperation(format!(
@@ -558,18 +567,8 @@ fn mysql_value_to_string(value: &mysql::Value) -> String {
     }
 }
 
-fn load_csv(path: &Path) -> AppResult<DataSet> {
-    let mut rdr = csv::Reader::from_path(path)?;
-    let headers = rdr
-        .headers()?
-        .iter()
-        .map(|s| s.to_string())
-        .collect::<Vec<_>>();
-
-    let rows = rdr
-        .records()
-        .map(|r| r.map(|record| record.iter().map(|s| s.to_string()).collect()))
-        .collect::<Result<Vec<Vec<String>>, csv::Error>>()?;
+fn load_csv(path: &Path, relaxed_csv: bool) -> AppResult<DataSet> {
+    let (headers, rows) = load_csv_rows(path, relaxed_csv)?;
 
     Ok(DataSet {
         headers,
@@ -591,17 +590,53 @@ fn load_json(path: &Path) -> AppResult<DataSet> {
     })
 }
 
-fn load_csv_rows(path: &Path) -> AppResult<(Vec<String>, Vec<Vec<String>>)> {
-    let mut rdr = csv::Reader::from_path(path)?;
+fn load_csv_rows(path: &Path, relaxed_csv: bool) -> AppResult<(Vec<String>, Vec<Vec<String>>)> {
+    let mut builder = csv::ReaderBuilder::new();
+    builder.flexible(relaxed_csv);
+    let mut rdr = builder.from_path(path)?;
     let headers = rdr
         .headers()?
         .iter()
         .map(|s| s.to_string())
         .collect::<Vec<_>>();
-    let rows = rdr
-        .records()
-        .map(|r| r.map(|record| record.iter().map(|s| s.to_string()).collect()))
-        .collect::<Result<Vec<Vec<String>>, csv::Error>>()?;
+
+    let mut padded_rows = 0_usize;
+    let mut truncated_rows = 0_usize;
+    let mut rows = Vec::new();
+    for record in rdr.records() {
+        let mut row = record?
+            .iter()
+            .map(|cell| cell.to_string())
+            .collect::<Vec<_>>();
+
+        if relaxed_csv {
+            if row.len() < headers.len() {
+                row.resize(headers.len(), String::new());
+                padded_rows += 1;
+            } else if row.len() > headers.len() {
+                row.truncate(headers.len());
+                truncated_rows += 1;
+            }
+        }
+
+        rows.push(row);
+    }
+
+    if relaxed_csv && (padded_rows > 0 || truncated_rows > 0) {
+        let mut warnings = Vec::new();
+        if padded_rows > 0 {
+            warnings.push(format!("{padded_rows} row(s) padded"));
+        }
+        if truncated_rows > 0 {
+            warnings.push(format!("{truncated_rows} row(s) truncated"));
+        }
+        eprintln!(
+            "Warning: normalized irregular CSV rows in {} ({})",
+            path.display(),
+            warnings.join(", ")
+        );
+    }
+
     Ok((headers, rows))
 }
 

@@ -50,6 +50,12 @@ struct Cli {
 
     #[arg(
         long,
+        help = "Relax CSV parsing: pad missing columns and warn for irregular rows"
+    )]
+    relaxed: bool,
+
+    #[arg(
+        long,
         value_name = "SQL_FILE",
         help = "Execute SQL file directly (.sql) for SQLite/PostgreSQL/MySQL",
         requires = "source"
@@ -210,7 +216,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let table = cli.import_table.as_deref().ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidInput, "--import-table is required")
         })?;
-        let message = data::import_into_sqlite(Path::new(source), table, import_file)
+        let message = data::import_into_sqlite(Path::new(source), table, import_file, cli.relaxed)
             .map_err(|e| format!("Import failed: {e}"))?;
         println!("{message}");
     }
@@ -223,7 +229,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Some(export_path) = &cli.export {
         // Load dataset
-        let dataset = DataSet::from_source(source, cli.query.as_deref())
+        let dataset = DataSet::from_source(source, cli.query.as_deref(), cli.relaxed)
             .map_err(|e| format!("Failed to load data for export: {e}"))?;
 
         // Determine format from extension
@@ -253,7 +259,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let dataset = DataSet::from_source(source, cli.query.as_deref())
+    let dataset = DataSet::from_source(source, cli.query.as_deref(), cli.relaxed)
         .map_err(|e| format!("Failed to open source: {e}"))?;
     let theme = load_active_theme();
     let keymap = Keymap::from_config(&config.keybindings);

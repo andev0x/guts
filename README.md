@@ -97,6 +97,9 @@ The source can be a file path or database URI:
 # Explore a CSV file
 guts users.csv
 
+# Explore irregular CSV rows without failing
+guts users.csv --relaxed
+
 # Open a JSON file
 guts data.json
 
@@ -114,6 +117,9 @@ guts "postgres://user:password@localhost:5432/database"
 
 # Import CSV into SQLite
 guts app.db --import-file users.csv --import-table users
+
+# Import irregular CSV data and auto-fix row width
+guts app.db --import-file users.csv --import-table users --relaxed
 
 # Backup SQLite database
 guts app.db --backup-to backups/app-backup.db
@@ -249,4 +255,3 @@ We appreciate all contributions to this project. See the [contributor graph](htt
 <a href="https://github.com/andev0x/guts/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=andev0x/guts" />
 </a>
-
