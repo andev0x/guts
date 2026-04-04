@@ -1,14 +1,21 @@
 preset = "nord"
 
 [colors]
-border = "#81a1c1"
-status_line_bg = "#2e3440"
-status_line_fg = "#eceff4"
-
-# Highlight
-selected_background = "#434c5e"
-selected_foreground = "#88c0d0" # Frost Blue
-
-
-number_fg = "#b48ead"  # Purple
-link = "#5e81ac"       # Sapphire
+background = "#2E3440"
+border = "#81A1C1"
+header_background = "#3B4252"
+header_foreground = "#ECEFF4"
+row_foreground = "#D8DEE9"
+selected_background = "#4C566A"
+selected_foreground = "#EBCB8B"
+match_background = "#434C5E"
+status_mode_foreground = "#2E3440"
+status_mode_background = "#A3BE8C"
+status_text_foreground = "#ECEFF4"
+metrics_foreground = "#88C0D0"
+column_foreground = "#81A1C1"
+type_foreground = "#EBCB8B"
+source_foreground = "#B0B8C6"
+help_foreground = "#B0B8C6"
+input_prompt_foreground = "#88C0D0"
+input_text_foreground = "#ECEFF4"
