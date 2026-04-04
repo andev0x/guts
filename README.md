@@ -182,6 +182,20 @@ If no theme file is found, Guts defaults to the built-in `monochrome` theme on f
 - `catppuccin` — Modern, pastel-based color scheme
 - `monochrome` — Minimalist grayscale palette
 
+#### Theme Template Files
+
+The repository also ships ready-to-use theme template files in `presets/` that are designed for high contrast and comfortable scanning in terminal UIs:
+
+- `presets/aurora_mist.toml` — Crisp blue-cyan palette with strong focus states
+- `presets/sunset_terracotta.toml` — Warm terracotta palette with readable amber highlights
+- `presets/forest_canopy.toml` — Calm green palette with clear row and mode emphasis
+
+Use any template directly:
+
+```bash
+GUTS_THEME_FILE=presets/aurora_mist.toml guts <source>
+```
+
 #### Theme Configuration Example
 
 Create or edit `~/.config/guts/theme.config`:

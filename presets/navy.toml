@@ -1,39 +1,21 @@
-# guts - Terminal Data Explorer Configuration
-# Style: Midnight Navy (High-Contrast & Blur-Optimized)
-# ------------------------------------------------------------------
-
-# 1. Base Preset
-# Deep Navy usually works best starting from a dark base like "catppuccin"
-# or a custom dark profile.
 preset = "catppuccin"
 
 [colors]
-# 2. UI Framework (The Navy Foundation)
-# Use "none" for the main background to allow Terminal Blur to show.
-# For borders and headers, we use a strong Navy/Steel blue.
-border = "#5E81AC"             # Steel Blue: Strong definition for the table frame
-status_line_bg = "none"        # Transparent: Lets your Ghostty/Tmux blur shine through
-status_line_fg = "#81A1C1"     # Frost Blue: Soft labels for the UI
-
-# 3. Data Rendering (The "Visual Scan" layer)
-# High contrast text against a dark navy background.
-text_default = "#D8DEE9"       # Soft White: Primary content color
-number_fg = "#A3BE8C"          # Pale Green: High-contrast for numbers (easy to read)
-link_fg = "#89DCEB"            # Sky Blue: Bright cyan for clickable links/emails
-
-# 4. Active Navigation (The "Neon Navy" Focus)
-# To make it intuitive, we use a bright highlight for the selected row.
-# Deep Navy Background + Bright Cyan/Gold Foreground.
-selected_background = "#1E222A" # Midnight Navy: Very dark selection bar
-selected_foreground = "#89B4FA" # Marine Blue: Bright focus color for the active row
-
-# 5. Semantic Data (Difficulty/Status)
-# These use distinct colors so you don't have to read the text.
-success = "#A6E3A1"            # Seafoam Green: Easy / Active
-warning = "#F9E2AF"            # Sand Yellow: Medium / Pending
-error = "#F38BA8"              # Coral Red: Hard / Error
-
-# 6. Search & Filter (High Contrast Highlight)
-# When you press '/', this makes the results "pop".
-search_match_bg = "#FAB387"    # Sunset Peach: Bright background for matches
-search_match_fg = "#11111B"    # Deep Black: Dark text on bright matches
+background = "#0C1321"
+border = "#5E81AC"
+header_background = "#131E31"
+header_foreground = "#E5ECF6"
+row_foreground = "#D3DFEE"
+selected_background = "#1E2C45"
+selected_foreground = "#A9CBFF"
+match_background = "#2D3E5A"
+status_mode_foreground = "#0C1321"
+status_mode_background = "#A9D4FF"
+status_text_foreground = "#E5ECF6"
+metrics_foreground = "#9DDDF4"
+column_foreground = "#B7D2F4"
+type_foreground = "#F4DFA2"
+source_foreground = "#A9B8CC"
+help_foreground = "#A9B8CC"
+input_prompt_foreground = "#98D6EF"
+input_text_foreground = "#F4F8FF"

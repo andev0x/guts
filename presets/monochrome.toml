@@ -1,40 +1,21 @@
-
-# guts - Terminal Data Explorer Configuration
-# Style: Ultimate Emerald (Vibrant High-Contrast for Blurred Terminals)
-# ------------------------------------------------------------------
-
 preset = "monochrome"
 
 [colors]
-# 1. UI Framework & Borders (The "Glow" Frame)
-# Use a solid Emerald for borders to give the app a definitive shape.
-border = "#27AE60"              # Nephrite Green: Strong, solid border
-status_line_bg = "none"         # Transparent: Essential for the blur effect
-status_line_fg = "#ECF0F1"      # Pure Cloud: Bright white labels for UI
-
-# 2. Status Buttons (The "Active" Pills)
-# Vivid Mint-Green for buttons like NORMAL, SEARCH, FILTER.
-status_mode_background = "#2ECC71" # Bright Emerald: High-visibility buttons
-status_mode_foreground = "#000000" # Pure Black: Sharp text on badges
-
-# 3. Selection & Highlight (The "Laser" Focus)
-# FIX: Moving from pale green to a saturated "Spring Green".
-# This color is punchy and won't get "washed out" by the background blur.
-selected_background = "#00FF7F" # Spring Green: Vibrant & Sharp
-selected_foreground = "#000000" # Pure Black: Best contrast for readability
-
-# 4. Data & Preview (The "Content" Layer)
-# Pure White for text and Bright Emerald for numbers to ensure zero "dimming".
-text_default = "#FFFFFF"        # Pure White: Absolute clarity
-number_fg = "#2ECC71"           # Emerald: Numbers pop with consistent theme color
-link_fg = "#3498DB"             # Bright Blue: Clear distinction for URLs
-
-# 5. Search & Match (The "Alert" Layer)
-# Using a contrasting yellow-gold that cuts through the green theme.
-search_match_bg = "#F1C40F"     # Vivid Gold: Instant search visibility
-search_match_fg = "#000000"     # Pure Black
-
-# 6. Semantic Status
-success = "#2ECC71"             # Emerald
-warning = "#F39C12"             # Orange
-error = "#E74C3C"               # Alizarin Red
+background = "#0B0F0D"
+border = "#1F7A4C"
+header_background = "#0B0F0D"
+header_foreground = "#DFF5E8"
+row_foreground = "#BFEAD2"
+selected_background = "#1F7A4C"
+selected_foreground = "#EAFBF1"
+match_background = "#11261B"
+status_mode_foreground = "#0B0F0D"
+status_mode_background = "#63E6A2"
+status_text_foreground = "#CFF3DE"
+metrics_foreground = "#63E6A2"
+column_foreground = "#8FE3B9"
+type_foreground = "#E6C96B"
+source_foreground = "#7FAF98"
+help_foreground = "#6E9F8A"
+input_prompt_foreground = "#63E6A2"
+input_text_foreground = "#F0FFF6"
