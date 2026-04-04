@@ -1,4 +1,4 @@
-# guts
+# Guts
 
 [![Latest Release](https://img.shields.io/github/v/release/andev0x/guts?style=flat-square&color=A6E3A1)](https://github.com/andev0x/guts/releases)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/andev0x/guts/ci.yml?branch=main&style=flat-square)](https://github.com/andev0x/guts/actions)
@@ -6,101 +6,122 @@
 [![Downloads](https://img.shields.io/github/downloads/andev0x/guts/total?style=flat-square&color=89B4FA)](https://github.com/andev0x/guts/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
-A modern, keyboard-first terminal data explorer for engineers. Guts is designed for speed and clarity when exploring CSV, JSON, and SQLite data directly in the terminal. It is heavily inspired by Vim-style navigation and Unix philosophy.
+A keyboard-first terminal data explorer designed for engineers who need speed and clarity when inspecting data. Guts provides an intuitive interface for exploring CSV, JSON, SQLite, and remote database sources directly from your terminal, inspired by Vim navigation principles and Unix philosophy.
 
 ## Overview
 
-Guts enables rapid data exploration and analysis through an intuitive terminal interface. Whether you're working with local files (CSV, JSON, SQLite) or remote databases (PostgreSQL, MySQL, MongoDB), Guts provides a fast, keyboard-driven experience designed for modern data workflows.
+Guts streamlines data exploration and analysis through a fast, terminal-native interface. Whether you're analyzing local data files or querying remote databases, Guts delivers a responsive, keyboard-driven experience optimized for modern development workflows.
 
 ## Demo
 <div align="center">
-  <img src="https://raw.githubusercontent.com/andev0x/description-image-archive/refs/heads/main/guts/guts.gif" width="80%" alt="guts" />
+  <img src="https://raw.githubusercontent.com/andev0x/description-image-archive/refs/heads/main/guts/guts.gif" width="80%" alt="Guts terminal interface demonstration" />
 </div>
-
-
 
 ## Features
 
-- Fast loading and querying of multiple data formats
-  - CSV and JSON files
-  - SQLite databases (.db, .sqlite)
-  - PostgreSQL, MySQL, and MongoDB databases
-- Efficient table rendering with sticky headers and row selection
-- Virtual scrolling for large datasets with minimal overhead
+### Data Source Support
+- **Local Files**: CSV, JSON, SQLite databases
+- **Remote Databases**: PostgreSQL, MySQL, MongoDB
+
+### Navigation & Interaction
 - Vim-style keyboard navigation (h/j/k/l, g, G, Page Up/Down)
-- Powerful search and filtering capabilities
-  - Incremental search with next/previous navigation
-  - Fuzzy search across columns, rows, and history
-  - Query mode with support for SQL and text filters
-  - MongoDB quick collection queries
-- Advanced features
-  - Execute SQL files directly from command line or query mode
-  - Import CSV/JSON files into SQLite tables
-  - SQLite backup and restore functionality
-  - Smart cell type detection (URLs, emails, IP addresses, numbers)
-  - Open URLs and email addresses directly from cells
-  - Copy cell values to clipboard
-- Theming and customization
-  - Built-in theme system with TOML configuration
-  - Pre-configured theme presets (Nord, Gruvbox, Catppuccin, Monochrome)
-  - Automatic fallback to 16-color ANSI palette for basic terminal compatibility
-  - Fully configurable keybindings
+- Efficient table rendering with sticky headers and row selection
+- Virtual scrolling for large datasets with minimal performance impact
+- Smart cell type detection (URLs, emails, IP addresses, numbers)
+- Direct URL and email interaction from cells
+
+### Search & Filtering
+- Incremental search with next/previous navigation
+- Fuzzy search across columns, rows, and query history
+- Powerful query mode with SQL and text filtering support
+- MongoDB collection queries
+
+### Data Operations
+- Execute SQL files directly from command line or interactive mode
+- Import CSV and JSON files into SQLite tables
+- SQLite backup and restore functionality
+- Copy cell values to clipboard
+
+### Customization
+- Theme system with TOML configuration
+- Four built-in theme presets: Nord, Gruvbox, Catppuccin, Monochrome
+- Automatic 16-color ANSI fallback for compatibility
+- Fully configurable keybindings
 
 ## Installation
 
-### Prerequisites
+### Homebrew (macOS)
 
-- Rust (stable or nightly)
-
-### From Source
-
-Clone the repository and build locally:
+Install via the community tap:
 
 ```bash
-git clone https://github.com/andev0x/guts.git
-cd guts
-cargo build --release
+brew tap andev0x/tap
+brew install guts
 ```
 
-Install the binary:
+### AUR (Arch Linux)
+
+Install from the Arch User Repository:
 
 ```bash
-cargo install --path .
-```
-
-Verify the installation:
-
-```bash
-guts --help
+paru -S guts
+# or
+yay -S guts
 ```
 
 ### Prebuilt Binaries
 
-Prebuilt binaries for Linux, macOS, and Windows are available in [GitHub Releases](https://github.com/andev0x/guts/releases). Tagged releases are automatically published with platform-specific builds.
+Download prebuilt binaries for Linux, macOS, and Windows from [GitHub Releases](https://github.com/andev0x/guts/releases). These are automatically published with each tagged release.
+
+### Building from Source
+
+**Prerequisites**: Rust toolchain (stable or later)
+
+1. Clone the repository:
+```bash
+git clone https://github.com/andev0x/guts.git
+cd guts/guts
+```
+
+2. Build the project:
+```bash
+cargo build --release
+```
+
+3. Install the binary:
+```bash
+cargo install --path .
+```
+
+4. Verify the installation:
+```bash
+guts --help
+```
 
 ## Quick Start
 
-Run Guts with a data source:
+### Basic Usage
+
+Run Guts with any supported data source:
 
 ```bash
 guts <source>
 ```
 
-The source can be a file path or database URI:
+Supported sources include:
+- **Local files**: CSV, JSON, SQLite (`.db`, `.sqlite`)
+- **Remote databases**: `postgres://`, `mysql://`, `mongodb://`
 
-- Local files: `.csv`, `.json`, `.db`, `.sqlite`
-- Databases: `postgres://`, `mysql://`, `mongodb://`
-
-### Examples
+### Common Examples
 
 ```bash
 # Explore a CSV file
 guts users.csv
 
-# Explore irregular CSV rows without failing
+# Explore CSV with irregular row lengths
 guts users.csv --relaxed
 
-# Open a JSON file
+# Open and browse a JSON file
 guts data.json
 
 # Browse SQLite database tables
@@ -109,16 +130,16 @@ guts app.db
 # Execute a custom SQL query
 guts app.db --query "SELECT id, email FROM users LIMIT 100"
 
-# Execute SQL from a file
+# Execute SQL statements from a file
 guts app.db --sql-file migrations/init.sql
 
-# Connect to PostgreSQL
+# Connect to PostgreSQL database
 guts "postgres://user:password@localhost:5432/database"
 
-# Import CSV into SQLite
+# Import CSV into SQLite table
 guts app.db --import-file users.csv --import-table users
 
-# Import irregular CSV data and auto-fix row width
+# Import CSV with automatic row width correction
 guts app.db --import-file users.csv --import-table users --relaxed
 
 # Backup SQLite database
@@ -128,7 +149,7 @@ guts app.db --backup-to backups/app-backup.db
 guts app.db --restore-from backups/app-backup.db
 ```
 
-### Initial Configuration
+### Initial Setup
 
 Initialize the default configuration:
 
@@ -136,34 +157,34 @@ Initialize the default configuration:
 guts --init-config
 ```
 
-This creates a default `theme.toml` at `$HOME/.config/guts/theme.toml` for customization.
+This creates a configuration file at `~/.config/guts/theme.toml` with `monochrome` as the default preset. You can customize it at any time in `~/.config/guts/`.
 
 ## Configuration
 
 ### Themes
 
-Guts includes a theming system based on TOML configuration. Configuration files are discovered in the following order:
+Guts includes a TOML-based theming system. Configuration files are discovered in the following order:
 
 1. `GUTS_THEME_FILE` environment variable (absolute or relative path)
 2. `./theme.toml` (current working directory)
 3. `$XDG_CONFIG_HOME/guts/theme.toml`
 4. `$HOME/.config/guts/theme.toml`
 
-If no theme file is found, Guts automatically falls back to a basic 16-color ANSI palette. If the terminal does not support TrueColor, Guts also uses the ANSI palette.
+If no theme file is found, Guts defaults to the built-in `monochrome` theme on first run. If your terminal doesn't support TrueColor, Guts automatically falls back to a 16-color ANSI palette.
 
-#### Built-in Presets
+#### Built-in Theme Presets
 
-- `nord` - Snow blue, cool, and soothing theme
-- `gruvbox` - Retro warm theme with vintage yellow tones
-- `catppuccin` - Modern pastel color scheme
-- `monochrome` - Minimalist white, black, and gray palette
+- `nord` — Cool, soothing theme inspired by arctic colors
+- `gruvbox` — Warm, retro-inspired theme with vintage accents
+- `catppuccin` — Modern, pastel-based color scheme
+- `monochrome` — Minimalist grayscale palette
 
-#### Example Configuration
+#### Theme Configuration Example
 
 Create or edit `~/.config/guts/theme.toml`:
 
 ```toml
-preset = "nord"
+preset = "monochrome"
 
 [colors]
 border = "#81A1C1"
@@ -171,41 +192,50 @@ selected_background = "#5E81AC"
 status_mode_background = "#A3BE8C"
 ```
 
-### Keybindings
+### Keyboard Shortcuts
 
-The default keybindings follow Vim conventions. Configure custom keybindings in `~/.config/guts/config.toml`:
+Guts uses Vim-inspired keybindings by default. Create `~/.config/guts/config.toml` to customize shortcuts.
 
 #### Navigation
 
-- `h` / `Left Arrow`: Move left
-- `l` / `Right Arrow`: Move right
-- `k` / `Up Arrow`: Move up
-- `j` / `Down Arrow`: Move down
-- `g`: Jump to top
-- `G`: Jump to bottom
-- `PageUp`: Scroll up by page
-- `PageDown`: Scroll down by page
+| Key | Action |
+|-----|--------|
+| `h` / `←` | Move left |
+| `l` / `→` | Move right |
+| `k` / `↑` | Move up |
+| `j` / `↓` | Move down |
+| `g` | Jump to top |
+| `G` | Jump to bottom |
+| `PageUp` | Scroll up one page |
+| `PageDown` | Scroll down one page |
 
-#### Search and Filtering
+#### Search & Query
 
-- `/`: Enter search mode (incremental search)
-- `n`: Jump to next search result
-- `N`: Jump to previous search result
-- `:`: Enter query/filter mode
-- `Ctrl-f`: Open fuzzy search overlay
-- `Tab`: Cycle fuzzy search scope (Columns → Rows → History)
-- `Ctrl-p`: Previous query history (in query mode)
-- `Ctrl-n`: Next query history (in query mode)
+| Key | Action |
+|-----|--------|
+| `/` | Enter search mode (incremental) |
+| `n` | Jump to next match |
+| `N` | Jump to previous match |
+| `:` | Enter query/filter mode |
+| `Ctrl-f` | Open fuzzy search overlay |
+| `Tab` | Cycle fuzzy search scope (Columns → Rows → History) |
+| `Ctrl-p` | Previous query history |
+| `Ctrl-n` | Next query history |
 
 #### Actions
 
-- `o`: Open selected URL or email
-- `y`: Copy selected cell value to clipboard
-- `q`: Quit Guts
+| Key | Action |
+|-----|--------|
+| `o` | Open URL or email from cell |
+| `y` | Copy cell value to clipboard |
+| `E` | Export current data |
+| `v` | View/expand cell details |
+| `Enter` | Confirm selection |
+| `q` | Exit Guts |
 
 #### Custom Keybindings
 
-Edit `~/.config/guts/config.toml` to customize keybindings:
+Edit `~/.config/guts/config.toml`:
 
 ```toml
 [keybindings.navigation]
@@ -221,37 +251,46 @@ fuzzy_cycle_scope = ["Tab"]
 [keybindings.actions]
 copy = ["y"]
 open = ["o"]
+export_csv = ["E"]
+toggle_preview = ["v"]
+confirm = ["Enter"]
 ```
 
-## Status
+## Project Status
 
-Guts is actively developed and maintains a stable feature set for local and remote data exploration workflows. The 1.0 release includes:
+Guts is actively maintained and production-ready. The 1.0 release includes stable support for:
 
-- CSV and JSON file support
-- SQLite database integration
-- PostgreSQL, MySQL, and MongoDB connectivity
-- Full table rendering with navigation and search
+- CSV and JSON file parsing
+- SQLite, PostgreSQL, MySQL, and MongoDB database integration
+- Full table navigation and rendering
 - Virtual scrolling for large datasets
-- Query execution and filtering
-- Smart cell type detection
-- Comprehensive theming system
-- Configurable keybindings
+- Advanced query execution and filtering
+- Intelligent cell type detection and interaction
+- Comprehensive theming and customization
+- Configurable keyboard shortcuts
 
 ## Contributing
 
-We welcome contributions to Guts. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to submit issues, propose features, and create pull requests.
+We welcome contributions to Guts! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Development setup instructions
+- Code style guidelines
+- Pull request process
+- Issue reporting guidelines
 
-## Support
+## Getting Help
 
-For bug reports, feature requests, or questions, please open an issue on the [GitHub repository](https://github.com/andev0x/guts/issues).
+- **Report bugs or request features**: Open an issue on [GitHub](https://github.com/andev0x/guts/issues)
+- **Discuss ideas**: Use GitHub Discussions for feature proposals and questions
+- **See examples**: Check the Quick Start section above
 
 ## License
 
-Guts is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+Guts is distributed under the MIT License. See [LICENSE](LICENSE) for complete details.
 
-## Contributors
+## Acknowledgments
 
-We appreciate all contributions to this project. See the [contributor graph](https://github.com/andev0x/guts/graphs/contributors) for a list of everyone who has helped.
+We appreciate all contributions to Guts. View the complete list of contributors on [GitHub](https://github.com/andev0x/guts/graphs/contributors).
+
 <a href="https://github.com/andev0x/guts/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=andev0x/guts" />
 </a>
