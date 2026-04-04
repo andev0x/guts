@@ -42,7 +42,7 @@ pub enum InitConfigOutcome {
 }
 
 #[allow(dead_code)]
-pub const DEFAULT_THEME_TOML: &str = r##"preset = "nord"
+pub const DEFAULT_THEME_TOML: &str = r##"preset = "monochrome"
 
 [colors]
 # Any field in this section is optional.
@@ -108,13 +108,13 @@ pub struct ThemeOverrides {
 }
 
 pub fn load_active_theme() -> ActiveTheme {
-    let Some(path) = discover_theme_file() else {
-        return ActiveTheme::ansi_fallback("missing theme.toml");
-    };
-
     if !supports_truecolor() {
         return ActiveTheme::ansi_fallback("terminal has no TrueColor");
     }
+
+    let Some(path) = discover_theme_file() else {
+        return ActiveTheme::configured("monochrome".to_string(), monochrome_palette());
+    };
 
     let raw = match fs::read_to_string(&path) {
         Ok(raw) => raw,
@@ -237,8 +237,8 @@ fn base_palette_for(preset: Option<&str>) -> (&'static str, Palette) {
         Some("catppuccin") => ("catppuccin", catppuccin_palette()),
         Some("monochrome") => ("monochrome", monochrome_palette()),
         Some("ansi") | Some("basic") => ("ansi-basic", ansi_palette()),
-        Some(_) => ("nord", nord_palette()),
-        None => ("nord", nord_palette()),
+        Some(_) => ("monochrome", monochrome_palette()),
+        None => ("monochrome", monochrome_palette()),
     }
 }
 
