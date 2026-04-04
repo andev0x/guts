@@ -157,7 +157,7 @@ Initialize the default configuration:
 guts --init-config
 ```
 
-This creates a configuration file at `~/.config/guts/theme.toml` with `monochrome` as the default preset. You can customize it at any time in `~/.config/guts/`.
+This creates a configuration file at `~/.config/guts/config.toml`. Theme overrides are loaded from `~/.config/guts/theme.config` (or legacy `theme.toml`) and default to `monochrome` when unset.
 
 ## Configuration
 
@@ -166,9 +166,12 @@ This creates a configuration file at `~/.config/guts/theme.toml` with `monochrom
 Guts includes a TOML-based theming system. Configuration files are discovered in the following order:
 
 1. `GUTS_THEME_FILE` environment variable (absolute or relative path)
-2. `./theme.toml` (current working directory)
-3. `$XDG_CONFIG_HOME/guts/theme.toml`
-4. `$HOME/.config/guts/theme.toml`
+2. `./theme.config` (current working directory)
+3. `./theme.toml` (legacy current working directory)
+4. `$XDG_CONFIG_HOME/guts/theme.config`
+5. `$XDG_CONFIG_HOME/guts/theme.toml` (legacy)
+6. `$HOME/.config/guts/theme.config`
+7. `$HOME/.config/guts/theme.toml` (legacy)
 
 If no theme file is found, Guts defaults to the built-in `monochrome` theme on first run. If your terminal doesn't support TrueColor, Guts automatically falls back to a 16-color ANSI palette.
 
@@ -181,7 +184,7 @@ If no theme file is found, Guts defaults to the built-in `monochrome` theme on f
 
 #### Theme Configuration Example
 
-Create or edit `~/.config/guts/theme.toml`:
+Create or edit `~/.config/guts/theme.config`:
 
 ```toml
 preset = "monochrome"

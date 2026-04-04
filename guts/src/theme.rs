@@ -118,18 +118,16 @@ pub fn load_active_theme() -> ActiveTheme {
 
     let raw = match fs::read_to_string(&path) {
         Ok(raw) => raw,
-        Err(_) => return ActiveTheme::ansi_fallback("cannot read theme.toml"),
+        Err(_) => return ActiveTheme::ansi_fallback("cannot read theme config"),
     };
 
     let config: ThemeConfig = match toml::from_str(&raw) {
         Ok(config) => config,
-        Err(_) => return ActiveTheme::ansi_fallback("invalid theme.toml"),
+        Err(_) => return ActiveTheme::ansi_fallback("invalid theme config"),
     };
 
     let (base_name, mut palette) = base_palette_for(config.preset.as_deref());
-    if apply_overrides(&mut palette, &config.colors).is_err() {
-        return ActiveTheme::ansi_fallback("invalid color in theme.toml");
-    }
+    let invalid_overrides = apply_overrides(&mut palette, &config.colors);
 
     let name = if has_any_override(&config.colors) {
         format!("custom ({base_name})")
@@ -137,7 +135,15 @@ pub fn load_active_theme() -> ActiveTheme {
         base_name.to_string()
     };
 
-    ActiveTheme::configured(name, palette)
+    let mut active = ActiveTheme::configured(name, palette);
+    if !invalid_overrides.is_empty() {
+        active.fallback_reason = Some(format!(
+            "ignored invalid colors: {}",
+            invalid_overrides.join(", ")
+        ));
+    }
+
+    active
 }
 
 #[allow(dead_code)]
@@ -160,7 +166,7 @@ pub fn init_default_config() -> io::Result<InitConfigOutcome> {
 fn default_user_theme_path() -> io::Result<PathBuf> {
     let home =
         env::var("HOME").map_err(|_| io::Error::new(io::ErrorKind::NotFound, "HOME is not set"))?;
-    Ok(PathBuf::from(home).join(".config/guts/theme.toml"))
+    Ok(PathBuf::from(home).join(".config/guts/theme.config"))
 }
 
 fn discover_theme_file() -> Option<PathBuf> {
@@ -171,22 +177,31 @@ fn discover_theme_file() -> Option<PathBuf> {
         }
     }
 
-    let local = PathBuf::from("theme.toml");
-    if local.is_file() {
-        return Some(local);
+    for local_name in ["theme.config", "theme.toml"] {
+        let local = PathBuf::from(local_name);
+        if local.is_file() {
+            return Some(local);
+        }
     }
 
     if let Ok(xdg_home) = env::var("XDG_CONFIG_HOME") {
-        let path = PathBuf::from(xdg_home).join("guts/theme.toml");
-        if path.is_file() {
-            return Some(path);
+        for file_name in ["theme.config", "theme.toml"] {
+            let path = PathBuf::from(&xdg_home).join("guts").join(file_name);
+            if path.is_file() {
+                return Some(path);
+            }
         }
     }
 
     if let Ok(home) = env::var("HOME") {
-        let path = PathBuf::from(home).join(".config/guts/theme.toml");
-        if path.is_file() {
-            return Some(path);
+        for file_name in ["theme.config", "theme.toml"] {
+            let path = PathBuf::from(&home)
+                .join(".config")
+                .join("guts")
+                .join(file_name);
+            if path.is_file() {
+                return Some(path);
+            }
         }
     }
 
@@ -233,111 +248,148 @@ fn has_any_override(colors: &ThemeOverrides) -> bool {
 fn base_palette_for(preset: Option<&str>) -> (&'static str, Palette) {
     match preset.map(|p| p.trim().to_ascii_lowercase()).as_deref() {
         Some("nord") => ("nord", nord_palette()),
-        Some("gravbox") | Some("gruvbox") => ("gravbox", gravbox_palette()),
+        Some("gravbox") | Some("gruvbox") => ("gruvbox", gravbox_palette()),
         Some("catppuccin") => ("catppuccin", catppuccin_palette()),
-        Some("monochrome") => ("monochrome", monochrome_palette()),
-        Some("ansi") | Some("basic") => ("ansi-basic", ansi_palette()),
+        Some("monochrome") | Some("mono-chrome") | Some("mono_chrome") => {
+            ("monochrome", monochrome_palette())
+        }
+        Some("ansi") | Some("basic") | Some("ansi-basic") | Some("ansi_basic") => {
+            ("ansi-basic", ansi_palette())
+        }
         Some(_) => ("monochrome", monochrome_palette()),
         None => ("monochrome", monochrome_palette()),
     }
 }
 
-fn apply_overrides(palette: &mut Palette, overrides: &ThemeOverrides) -> Result<(), String> {
-    apply_optional_color(&mut palette.background, &overrides.background, "background")?;
-    apply_optional_color(&mut palette.border, &overrides.border, "border")?;
+fn apply_overrides(palette: &mut Palette, overrides: &ThemeOverrides) -> Vec<String> {
+    let mut invalid = Vec::new();
+
+    apply_optional_color(
+        &mut palette.background,
+        &overrides.background,
+        "background",
+        &mut invalid,
+    );
+    apply_optional_color(
+        &mut palette.border,
+        &overrides.border,
+        "border",
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.header_background,
         &overrides.header_background,
         "header_background",
-    )?;
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.header_foreground,
         &overrides.header_foreground,
         "header_foreground",
-    )?;
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.row_foreground,
         &overrides.row_foreground,
         "row_foreground",
-    )?;
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.selected_background,
         &overrides.selected_background,
         "selected_background",
-    )?;
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.selected_foreground,
         &overrides.selected_foreground,
         "selected_foreground",
-    )?;
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.match_background,
         &overrides.match_background,
         "match_background",
-    )?;
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.status_mode_foreground,
         &overrides.status_mode_foreground,
         "status_mode_foreground",
-    )?;
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.status_mode_background,
         &overrides.status_mode_background,
         "status_mode_background",
-    )?;
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.status_text_foreground,
         &overrides.status_text_foreground,
         "status_text_foreground",
-    )?;
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.metrics_foreground,
         &overrides.metrics_foreground,
         "metrics_foreground",
-    )?;
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.column_foreground,
         &overrides.column_foreground,
         "column_foreground",
-    )?;
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.type_foreground,
         &overrides.type_foreground,
         "type_foreground",
-    )?;
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.source_foreground,
         &overrides.source_foreground,
         "source_foreground",
-    )?;
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.help_foreground,
         &overrides.help_foreground,
         "help_foreground",
-    )?;
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.input_prompt_foreground,
         &overrides.input_prompt_foreground,
         "input_prompt_foreground",
-    )?;
+        &mut invalid,
+    );
     apply_optional_color(
         &mut palette.input_text_foreground,
         &overrides.input_text_foreground,
         "input_text_foreground",
-    )?;
-    Ok(())
+        &mut invalid,
+    );
+
+    invalid
 }
 
 fn apply_optional_color(
     slot: &mut Color,
     value: &Option<String>,
     field: &str,
-) -> Result<(), String> {
+    invalid: &mut Vec<String>,
+) {
     let Some(raw) = value else {
-        return Ok(());
+        return;
     };
-    *slot = parse_color(raw).map_err(|err| format!("{field}: {err}"))?;
-    Ok(())
+
+    match parse_color(raw) {
+        Ok(color) => *slot = color,
+        Err(err) => invalid.push(format!("{field}: {err}")),
+    }
 }
 
 fn parse_color(raw: &str) -> Result<Color, String> {
@@ -353,6 +405,7 @@ fn parse_color(raw: &str) -> Result<Color, String> {
     }
 
     match value.to_ascii_lowercase().as_str() {
+        "none" | "reset" | "default" => Ok(Color::Reset),
         "black" => Ok(Color::Black),
         "red" => Ok(Color::Red),
         "green" => Ok(Color::Green),
@@ -485,5 +538,48 @@ fn monochrome_palette() -> Palette {
         help_foreground: Color::Rgb(150, 150, 150),
         input_prompt_foreground: Color::Rgb(224, 224, 224),
         input_text_foreground: Color::Rgb(255, 255, 255),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_common_preset_aliases() {
+        let (name, _) = base_palette_for(Some("gruvbox"));
+        assert_eq!(name, "gruvbox");
+
+        let (name, _) = base_palette_for(Some("ansi-basic"));
+        assert_eq!(name, "ansi-basic");
+
+        let (name, _) = base_palette_for(Some("mono-chrome"));
+        assert_eq!(name, "monochrome");
+
+        let (name, _) = base_palette_for(Some("unknown-preset"));
+        assert_eq!(name, "monochrome");
+    }
+
+    #[test]
+    fn keeps_valid_overrides_when_one_color_is_invalid() {
+        let mut palette = nord_palette();
+        let overrides = ThemeOverrides {
+            border: Some("#112233".to_string()),
+            selected_background: Some("not-a-color".to_string()),
+            ..ThemeOverrides::default()
+        };
+
+        let invalid = apply_overrides(&mut palette, &overrides);
+
+        assert_eq!(palette.border, Color::Rgb(17, 34, 51));
+        assert_eq!(palette.selected_background, Color::Rgb(94, 129, 172));
+        assert_eq!(invalid.len(), 1);
+        assert!(invalid[0].starts_with("selected_background:"));
+    }
+
+    #[test]
+    fn parses_none_as_reset() {
+        assert_eq!(parse_color("none"), Ok(Color::Reset));
+        assert_eq!(parse_color("reset"), Ok(Color::Reset));
     }
 }

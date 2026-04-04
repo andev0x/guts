@@ -118,7 +118,7 @@ struct Cli {
 
     #[arg(
         long,
-        help = "Create ~/.config/guts/theme.toml with default template",
+        help = "Create ~/.config/guts/config.toml with default settings",
         conflicts_with = "source",
         conflicts_with = "query",
         conflicts_with = "sql_file",
@@ -175,8 +175,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let path = config::Config::save_default()?;
         {
             println!("Created default config at {}", path.display());
-            println!("\nYou can also create theme config with:");
-            println!("  guts --init-config  (legacy theme.toml)");
+            println!("\nTheme overrides can be placed in:");
+            println!("  ~/.config/guts/theme.config");
         }
         return Ok(());
     }
