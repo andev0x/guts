@@ -1,14 +1,24 @@
+# Guts Theme Preset
+# Profile: Monochrome Emerald
+# Base preset provides defaults; colors below use supported override keys only.
+# Format: #RRGGBB
+
 preset = "monochrome"
 
 [colors]
+# Core surfaces
 background = "#0B0F0D"
 border = "#1F7A4C"
 header_background = "#0B0F0D"
 header_foreground = "#DFF5E8"
 row_foreground = "#BFEAD2"
+
+# Focus and match states
 selected_background = "#1F7A4C"
 selected_foreground = "#EAFBF1"
 match_background = "#11261B"
+
+# Status chips and info text
 status_mode_foreground = "#0B0F0D"
 status_mode_background = "#63E6A2"
 status_text_foreground = "#CFF3DE"

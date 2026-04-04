@@ -1,14 +1,24 @@
+# Guts Theme Preset
+# Profile: Catppuccin Mocha
+# Base preset provides defaults; colors below use supported override keys only.
+# Format: #RRGGBB
+
 preset = "catppuccin"
 
 [colors]
+# Core surfaces
 background = "#1E1E2E"
 border = "#89B4FA"
 header_background = "#313244"
 header_foreground = "#CDD6F4"
 row_foreground = "#BAC2DE"
+
+# Focus and match states
 selected_background = "#45475A"
 selected_foreground = "#F5E0DC"
 match_background = "#585B70"
+
+# Status chips and info text
 status_mode_foreground = "#1E1E2E"
 status_mode_background = "#A6E3A1"
 status_text_foreground = "#CDD6F4"

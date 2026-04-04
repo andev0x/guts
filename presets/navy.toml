@@ -1,14 +1,24 @@
+# Guts Theme Preset
+# Profile: Midnight Navy
+# Base preset provides defaults; colors below use supported override keys only.
+# Format: #RRGGBB
+
 preset = "catppuccin"
 
 [colors]
+# Core surfaces
 background = "#0C1321"
 border = "#5E81AC"
 header_background = "#131E31"
 header_foreground = "#E5ECF6"
 row_foreground = "#D3DFEE"
+
+# Focus and match states
 selected_background = "#1E2C45"
 selected_foreground = "#A9CBFF"
 match_background = "#2D3E5A"
+
+# Status chips and info text
 status_mode_foreground = "#0C1321"
 status_mode_background = "#A9D4FF"
 status_text_foreground = "#E5ECF6"
