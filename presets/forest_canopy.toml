@@ -1,14 +1,24 @@
+# Guts Theme Preset
+# Profile: Forest Canopy
+# Base preset provides defaults; colors below use supported override keys only.
+# Format: #RRGGBB
+
 preset = "monochrome"
 
 [colors]
+# Core surfaces
 background = "#0F1E17"
 border = "#4ADE80"
 header_background = "#1B2A22"
 header_foreground = "#E6F4EA"
 row_foreground = "#CDE6D4"
+
+# Focus and match states
 selected_background = "#166534"
 selected_foreground = "#ECFDF5"
 match_background = "#2A3C31"
+
+# Status chips and info text
 status_mode_foreground = "#052E16"
 status_mode_background = "#86EFAC"
 status_text_foreground = "#E6F4EA"

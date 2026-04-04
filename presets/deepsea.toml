@@ -1,14 +1,24 @@
+# Guts Theme Preset
+# Profile: Deep Sea Arctic
+# Base preset provides defaults; colors below use supported override keys only.
+# Format: #RRGGBB
+
 preset = "nord"
 
 [colors]
+# Core surfaces
 background = "#0E1824"
 border = "#7AA2C8"
 header_background = "#162231"
 header_foreground = "#E6EEF7"
 row_foreground = "#D0DFEC"
+
+# Focus and match states
 selected_background = "#2C4A63"
 selected_foreground = "#F3DFAB"
 match_background = "#385166"
+
+# Status chips and info text
 status_mode_foreground = "#0E1824"
 status_mode_background = "#9CD4C6"
 status_text_foreground = "#E6EEF7"

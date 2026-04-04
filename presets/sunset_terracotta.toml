@@ -1,14 +1,24 @@
+# Guts Theme Preset
+# Profile: Sunset Terracotta
+# Base preset provides defaults; colors below use supported override keys only.
+# Format: #RRGGBB
+
 preset = "gruvbox"
 
 [colors]
+# Core surfaces
 background = "#2A1F1A"
 border = "#E07A5F"
 header_background = "#3A2A23"
 header_foreground = "#F2E9E4"
 row_foreground = "#E9D8C4"
+
+# Focus and match states
 selected_background = "#B85042"
 selected_foreground = "#FFF4EB"
 match_background = "#6B4F43"
+
+# Status chips and info text
 status_mode_foreground = "#2A1F1A"
 status_mode_background = "#F2CC8F"
 status_text_foreground = "#F2E9E4"

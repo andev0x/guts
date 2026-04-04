@@ -1,14 +1,24 @@
+# Guts Theme Preset
+# Profile: Aurora Mist
+# Base preset provides defaults; colors below use supported override keys only.
+# Format: #RRGGBB
+
 preset = "nord"
 
 [colors]
+# Core surfaces
 background = "#0F172A"
 border = "#38BDF8"
 header_background = "#1E293B"
 header_foreground = "#E2E8F0"
 row_foreground = "#CBD5E1"
+
+# Focus and match states
 selected_background = "#1D4ED8"
 selected_foreground = "#EFF6FF"
 match_background = "#334155"
+
+# Status chips and info text
 status_mode_foreground = "#082F49"
 status_mode_background = "#22D3EE"
 status_text_foreground = "#E2E8F0"
