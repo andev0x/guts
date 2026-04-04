@@ -1,6 +1,7 @@
 [package]
 name = "guts"
-version = "1.0.0"
+version = "1.0.4"
+authors = ["andev0x"]
 edition = "2024"
 
 [dependencies]
