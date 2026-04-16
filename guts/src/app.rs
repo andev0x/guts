@@ -1,8 +1,8 @@
 use crate::action::Action;
 use crate::data::{DataSet, SourceKind};
-use crate::detect::{CellKind, detect_kind};
+use crate::detect::{detect_kind, CellKind};
 use crate::export::{self, ExportFormat};
-use crate::fuzzy::{FuzzyMatch, fuzzy_search};
+use crate::fuzzy::{fuzzy_search, FuzzyMatch};
 use crate::history::QueryHistory;
 use crate::keybinding::Keymap;
 use crate::theme::ActiveTheme;
@@ -400,7 +400,11 @@ impl App {
     }
 
     pub fn preview_max_chars(&self) -> usize {
-        if self.preview_expanded { 1200 } else { 140 }
+        if self.preview_expanded {
+            1200
+        } else {
+            140
+        }
     }
 
     pub fn workflow_step(&self) -> &'static str {
