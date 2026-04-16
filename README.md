@@ -118,6 +118,9 @@ Supported sources include:
 # Explore a CSV file
 guts users.csv
 
+# Explore MySQL database
+guts "mysql://your_dbuser:your_dbpass@127.0.0.1:3306/yourdb_db" --query "SELECT * FROM yourdbs"
+
 # Explore CSV with irregular row lengths
 guts users.csv --relaxed
 
