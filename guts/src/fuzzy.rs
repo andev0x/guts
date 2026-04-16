@@ -39,7 +39,7 @@ pub fn fuzzy_search(items: &[String], pattern: &str) -> Vec<FuzzyMatch> {
         .collect();
 
     // Sort by score descending (higher score = better match)
-    matches.sort_by(|a, b| b.score.cmp(&a.score));
+    matches.sort_by_key(|entry| std::cmp::Reverse(entry.score));
     matches
 }
 

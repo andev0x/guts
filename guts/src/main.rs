@@ -296,10 +296,8 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
 
         if event::poll(Duration::from_millis(100))? {
             match event::read()? {
-                Event::Key(key) if key.kind == KeyEventKind::Press => {
-                    if handle_key(app, key)? {
-                        return Ok(());
-                    }
+                Event::Key(key) if key.kind == KeyEventKind::Press && handle_key(app, key)? => {
+                    return Ok(());
                 }
                 Event::Resize(_, _) => {}
                 _ => {}
