@@ -21,13 +21,13 @@ use clap::Parser;
 use crossterm::event::{self, Event, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::execute;
 use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
 use data::DataSet;
 use error::AppResult;
 use keybinding::Keymap;
-use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 use theme::load_active_theme;
 
 #[derive(Debug, Parser)]
