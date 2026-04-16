@@ -45,4 +45,7 @@ pub enum AppError {
 
     #[error("Database operation error: {0}")]
     DbOperation(String),
+
+    #[error("Command execution error: {0}")]
+    Command(String),
 }
