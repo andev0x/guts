@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::path::Path;
+use std::process::Command;
 
 use mongodb::bson::{Bson, Document};
 use mongodb::sync::Client as MongoClient;
@@ -14,15 +15,24 @@ const SQLITE_TABLE_LIST_SQL: &str =
     "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name";
 const POSTGRES_TABLE_LIST_SQL: &str = "SELECT table_schema, table_name FROM information_schema.tables WHERE table_type='BASE TABLE' AND table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_schema, table_name LIMIT 500";
 const MYSQL_TABLE_LIST_SQL: &str = "SELECT table_schema, table_name FROM information_schema.tables WHERE table_type='BASE TABLE' ORDER BY table_schema, table_name LIMIT 500";
+const DEFAULT_DOCKER_LOG_TAIL: usize = 200;
+const MAX_DOCKER_LOG_TAIL: usize = 5000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SourceKind {
     Csv,
     Json,
+    DockerLogs,
     Sqlite,
     Postgres,
     MySql,
     Mongo,
+}
+
+#[derive(Debug, Clone)]
+struct DockerLogSource {
+    container: String,
+    tail: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -50,6 +60,7 @@ impl DataSet {
         match kind {
             SourceKind::Csv => load_csv(Path::new(source), relaxed_csv),
             SourceKind::Json => load_json(Path::new(source)),
+            SourceKind::DockerLogs => load_docker_logs(source),
             SourceKind::Sqlite => load_sqlite(
                 Path::new(source),
                 initial_query.unwrap_or(SQLITE_TABLE_LIST_SQL),
@@ -73,6 +84,9 @@ pub fn detect_source_kind(source: &str) -> AppResult<SourceKind> {
     }
     if lower.starts_with("mongodb://") || lower.starts_with("mongodb+srv://") {
         return Ok(SourceKind::Mongo);
+    }
+    if lower.starts_with("docker://") {
+        return Ok(SourceKind::DockerLogs);
     }
 
     let path = Path::new(source);
@@ -103,7 +117,7 @@ pub fn execute_query(
         SourceKind::Postgres => execute_postgres_query(source_locator, query),
         SourceKind::MySql => execute_mysql_query(source_locator, query),
         SourceKind::Mongo => execute_mongo_command(source_locator, query),
-        SourceKind::Csv | SourceKind::Json => Err(AppError::DbOperation(
+        SourceKind::Csv | SourceKind::Json | SourceKind::DockerLogs => Err(AppError::DbOperation(
             "Ad-hoc query execution is only available for database sources".to_string(),
         )),
     };
@@ -158,7 +172,7 @@ pub fn execute_sql_file(
         SourceKind::Mongo => Err(AppError::DbOperation(
             "SQL files are not supported for MongoDB sources".to_string(),
         )),
-        SourceKind::Csv | SourceKind::Json => Err(AppError::DbOperation(
+        SourceKind::Csv | SourceKind::Json | SourceKind::DockerLogs => Err(AppError::DbOperation(
             "SQL files can only be executed against SQL databases".to_string(),
         )),
     }
@@ -590,6 +604,190 @@ fn load_json(path: &Path) -> AppResult<DataSet> {
     })
 }
 
+fn load_docker_logs(source: &str) -> AppResult<DataSet> {
+    let spec = parse_docker_log_source(source)?;
+    let output = Command::new("docker")
+        .arg("logs")
+        .arg("--tail")
+        .arg(spec.tail.to_string())
+        .arg(&spec.container)
+        .output()
+        .map_err(|e| AppError::Command(format!("Failed to execute docker logs: {e}")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let detail = if stderr.is_empty() {
+            format!("docker logs exited with status {}", output.status)
+        } else {
+            stderr
+        };
+        return Err(AppError::Command(format!(
+            "docker logs failed for {}: {}",
+            spec.container, detail
+        )));
+    }
+
+    let mut raw = String::from_utf8_lossy(&output.stdout).to_string();
+    if !output.stderr.is_empty() {
+        if !raw.is_empty() && !raw.ends_with('\n') {
+            raw.push('\n');
+        }
+        raw.push_str(&String::from_utf8_lossy(&output.stderr));
+    }
+
+    let (headers, rows) = docker_logs_to_rows(&raw);
+    Ok(DataSet {
+        headers,
+        rows,
+        source: format!("docker logs: {}", spec.container),
+        source_locator: source.to_string(),
+        kind: SourceKind::DockerLogs,
+    })
+}
+
+fn parse_docker_log_source(source: &str) -> AppResult<DockerLogSource> {
+    let locator = source
+        .strip_prefix("docker://")
+        .ok_or_else(|| AppError::UnsupportedSource(source.to_string()))?;
+
+    let (container_part, query_part) = match locator.split_once('?') {
+        Some((container, query)) => (container, Some(query)),
+        None => (locator, None),
+    };
+
+    let container = container_part.trim();
+    if container.is_empty() {
+        return Err(AppError::Command(
+            "docker source must include a container name (docker://<container>)".to_string(),
+        ));
+    }
+
+    let mut tail = DEFAULT_DOCKER_LOG_TAIL;
+    if let Some(query) = query_part {
+        for part in query.split('&').filter(|part| !part.is_empty()) {
+            let (key, value) = part.split_once('=').unwrap_or((part, ""));
+            if key.eq_ignore_ascii_case("tail") {
+                if value.is_empty() {
+                    return Err(AppError::Command(
+                        "docker tail must be a positive integer".to_string(),
+                    ));
+                }
+                let parsed = value.parse::<usize>().map_err(|_| {
+                    AppError::Command(format!(
+                        "Invalid docker tail value '{value}' (expected positive integer)"
+                    ))
+                })?;
+                if parsed == 0 || parsed > MAX_DOCKER_LOG_TAIL {
+                    return Err(AppError::Command(format!(
+                        "docker tail must be between 1 and {MAX_DOCKER_LOG_TAIL}"
+                    )));
+                }
+                tail = parsed;
+            }
+        }
+    }
+
+    Ok(DockerLogSource {
+        container: container.to_string(),
+        tail,
+    })
+}
+
+#[derive(Debug)]
+enum ParsedDockerLogLine {
+    JsonObject(serde_json::Map<String, Value>),
+    Raw(String),
+}
+
+fn docker_logs_to_rows(raw_logs: &str) -> (Vec<String>, Vec<Vec<String>>) {
+    let mut headers = Vec::new();
+    let mut parsed_lines = Vec::new();
+    let mut has_raw_lines = false;
+
+    for line in raw_logs.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        match serde_json::from_str::<Value>(trimmed) {
+            Ok(Value::Object(map)) => {
+                for key in map.keys() {
+                    if !headers.iter().any(|header| header == key) {
+                        headers.push(key.clone());
+                    }
+                }
+                parsed_lines.push(ParsedDockerLogLine::JsonObject(map));
+            }
+            Ok(value) => {
+                has_raw_lines = true;
+                parsed_lines.push(ParsedDockerLogLine::Raw(json_to_cell(&value)));
+            }
+            Err(_) => {
+                has_raw_lines = true;
+                parsed_lines.push(ParsedDockerLogLine::Raw(trimmed.to_string()));
+            }
+        }
+    }
+
+    if parsed_lines.is_empty() {
+        return (vec!["line".to_string()], Vec::new());
+    }
+
+    if headers.is_empty() {
+        let rows = parsed_lines
+            .into_iter()
+            .map(|line| match line {
+                ParsedDockerLogLine::JsonObject(map) => {
+                    vec![serde_json::to_string(&map).unwrap_or_default()]
+                }
+                ParsedDockerLogLine::Raw(raw) => vec![raw],
+            })
+            .collect();
+        return (vec!["line".to_string()], rows);
+    }
+
+    let raw_header = if has_raw_lines {
+        if headers.iter().any(|header| header == "raw") {
+            Some("_raw".to_string())
+        } else {
+            Some("raw".to_string())
+        }
+    } else {
+        None
+    };
+
+    let mut final_headers = headers.clone();
+    if let Some(header) = &raw_header {
+        final_headers.push(header.clone());
+    }
+
+    let rows = parsed_lines
+        .into_iter()
+        .map(|line| match line {
+            ParsedDockerLogLine::JsonObject(map) => {
+                let mut row = headers
+                    .iter()
+                    .map(|header| map.get(header).map(json_to_cell).unwrap_or_default())
+                    .collect::<Vec<_>>();
+                if raw_header.is_some() {
+                    row.push(String::new());
+                }
+                row
+            }
+            ParsedDockerLogLine::Raw(raw) => {
+                let mut row = vec![String::new(); headers.len()];
+                if raw_header.is_some() {
+                    row.push(raw);
+                }
+                row
+            }
+        })
+        .collect();
+
+    (final_headers, rows)
+}
+
 fn load_csv_rows(path: &Path, relaxed_csv: bool) -> AppResult<(Vec<String>, Vec<Vec<String>>)> {
     let mut builder = csv::ReaderBuilder::new();
     builder.flexible(relaxed_csv);
@@ -853,8 +1051,65 @@ fn ensure_parent_dir(path: &Path) -> AppResult<()> {
 
 pub fn source_query_hint(kind: SourceKind) -> &'static str {
     match kind {
-        SourceKind::Csv | SourceKind::Json => ": filter",
+        SourceKind::Csv | SourceKind::Json | SourceKind::DockerLogs => ": filter",
         SourceKind::Sqlite | SourceKind::Postgres | SourceKind::MySql => ": SQL query",
         SourceKind::Mongo => ": mongo (collection [limit])",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_docker_source_kind() {
+        let kind = detect_source_kind("docker://order-service").unwrap();
+        assert_eq!(kind, SourceKind::DockerLogs);
+    }
+
+    #[test]
+    fn parses_docker_source_with_defaults() {
+        let source = parse_docker_log_source("docker://order-service").unwrap();
+        assert_eq!(source.container, "order-service");
+        assert_eq!(source.tail, DEFAULT_DOCKER_LOG_TAIL);
+    }
+
+    #[test]
+    fn parses_docker_source_with_tail() {
+        let source = parse_docker_log_source("docker://order-service?tail=10").unwrap();
+        assert_eq!(source.container, "order-service");
+        assert_eq!(source.tail, 10);
+    }
+
+    #[test]
+    fn docker_logs_to_rows_parses_json_lines() {
+        let raw = r#"{"level":"info","service":"order-service","message":"ok"}
+{"level":"error","service":"order-service","message":"failed"}"#;
+
+        let (headers, rows) = docker_logs_to_rows(raw);
+        assert_eq!(rows.len(), 2);
+
+        let level_idx = headers.iter().position(|h| h == "level").unwrap();
+        let service_idx = headers.iter().position(|h| h == "service").unwrap();
+        let message_idx = headers.iter().position(|h| h == "message").unwrap();
+
+        assert_eq!(rows[0][level_idx], "info");
+        assert_eq!(rows[0][service_idx], "order-service");
+        assert_eq!(rows[1][level_idx], "error");
+        assert_eq!(rows[1][message_idx], "failed");
+    }
+
+    #[test]
+    fn docker_logs_to_rows_keeps_non_json_lines() {
+        let raw = r#"{"level":"info","message":"ready"}
+plain text line"#;
+
+        let (headers, rows) = docker_logs_to_rows(raw);
+        assert_eq!(rows.len(), 2);
+        assert!(headers.iter().any(|h| h == "raw"));
+
+        let raw_idx = headers.iter().position(|h| h == "raw").unwrap();
+        assert_eq!(rows[0][raw_idx], "");
+        assert_eq!(rows[1][raw_idx], "plain text line");
     }
 }

@@ -111,6 +111,7 @@ guts <source>
 Supported sources include:
 - **Local files**: CSV, JSON, SQLite (`.db`, `.sqlite`)
 - **Remote databases**: `postgres://`, `mysql://`, `mongodb://`
+- **Docker logs**: `docker://<container>?tail=<n>`
 
 ### Common Examples
 
@@ -126,6 +127,9 @@ guts users.csv --relaxed
 
 # Open and browse a JSON file
 guts data.json
+
+# Explore the latest Docker logs as structured rows
+guts "docker://order-service?tail=200"
 
 # Browse SQLite database tables
 guts app.db

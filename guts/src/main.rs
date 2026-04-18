@@ -35,7 +35,7 @@ use theme::load_active_theme;
 struct Cli {
     #[arg(
         value_name = "SOURCE",
-        help = "Path to .csv/.json/.sqlite/.db or DB URI (postgres://, mysql://, mongodb://)",
+        help = "Path to .csv/.json/.sqlite/.db, DB URI (postgres://, mysql://, mongodb://), or docker logs source (docker://container?tail=200)",
         required_unless_present = "init_config"
     )]
     source: Option<String>,
