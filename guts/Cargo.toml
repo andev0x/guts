@@ -8,7 +8,7 @@ license = "MIT"
 repository = "https://github.com/andev0x/guts"
 readme = "README.md"
 keywords = ["terminal", "database", "csv", "viewer", "explorer"]
-categories = ["command-line-utilities", "database-tools"]
+categories = ["command-line-utilities", "database"]
 
 [[bin]]
 name = "guts"
