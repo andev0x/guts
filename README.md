@@ -69,6 +69,14 @@ paru -S guts
 yay -S guts
 ```
 
+### crates.io
+
+Install via the Rust package registry ( crate name: `guts-view`):
+
+```bash
+cargo install guts-view
+```
+
 ### Prebuilt Binaries
 
 Download prebuilt binaries for Linux, macOS, and Windows from [GitHub Releases](https://github.com/andev0x/guts/releases). These are automatically published with each tagged release.
