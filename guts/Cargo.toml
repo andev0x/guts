@@ -1,8 +1,18 @@
 [package]
-name = "guts"
-version = "1.0.7"
+name = "guts-view"
+version = "1.0.8"
 authors = ["andev0x"]
 edition = "2024"
+description = "A keyboard-first terminal data explorer for CSV, JSON, and Databases."
+license = "MIT"
+repository = "https://github.com/andev0x/guts"
+readme = "README.md"
+keywords = ["terminal", "database", "csv", "viewer", "explorer"]
+categories = ["command-line-utilities", "database-tools"]
+
+[[bin]]
+name = "guts"
+path = "src/main.rs"
 
 [dependencies]
 arboard = "3.4"

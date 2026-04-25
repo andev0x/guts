@@ -1333,8 +1333,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "guts"
-version = "1.0.7"
+name = "guts-view"
+version = "1.0.8"
 dependencies = [
  "arboard",
  "clap",
