@@ -6,7 +6,7 @@ edition = "2024"
 description = "A keyboard-first terminal data explorer for CSV, JSON, and Databases."
 license = "MIT"
 repository = "https://github.com/andev0x/guts"
-readme = "README.md"
+readme = "../../README.md"
 keywords = ["terminal", "database", "csv", "viewer", "explorer"]
 categories = ["command-line-utilities", "database-tools"]
 
